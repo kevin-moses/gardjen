@@ -1,7 +1,7 @@
 import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 import { LSystemPlant } from "./tree";
-
 
 export class Renderer {
     constructor() {
@@ -11,15 +11,34 @@ export class Renderer {
         document.body.appendChild(this.renderer.domElement);
         
         this.camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 1000);
-        this.camera.position.set(0, 0, 100);
+        this.camera.position.set(20, 20, 80);
         this.camera.lookAt(0, 0, 0);
         
         this.scene = new THREE.Scene();
         this.scene.background = new THREE.Color(0x222222);
         
-        // Add some ambient light
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        // Add OrbitControls for camera manipulation
+        this.controls = new OrbitControls(this.camera, this.renderer.domElement);
+        this.controls.enableDamping = true; // Add smooth damping effect
+        this.controls.dampingFactor = 0.05;
+        this.controls.screenSpacePanning = true; // Pan parallel to the screen
+        this.controls.minDistance = 10; // Minimum zoom distance
+        this.controls.maxDistance = 500; // Maximum zoom distance
+        this.controls.maxPolarAngle = Math.PI / 1.5; // Limit vertical rotation
+        
+        // Replace ambient light with more dynamic lighting
+        const ambientLight = new THREE.AmbientLight(0x404040, 0.5); // Dimmer ambient
         this.scene.add(ambientLight);
+        
+        // Add directional light for shadows and definition
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
+        dirLight.position.set(10, 20, 15);
+        this.scene.add(dirLight);
+        
+        // Optional: Enable shadows for more realism
+        this.renderer.shadowMap.enabled = true;
+        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        dirLight.castShadow = true;
         
         // Initialize plants array - we can have multiple plants
         this.plants = [];
@@ -91,6 +110,9 @@ export class Renderer {
             // }
         }
         
+        // Update controls for smooth damping effect
+        this.controls.update();
+        
         // Update all plants and filter out any that are fully grown and inactive
         let stillGrowing = false;
         
@@ -111,9 +133,7 @@ export class Renderer {
         this.camera.updateProjectionMatrix();
         this.renderer.setSize(window.innerWidth, window.innerHeight);
     }
-
 }
-
 
 export function initVisualization() {
     const renderer = new Renderer();
