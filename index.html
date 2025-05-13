@@ -1,13 +1,129 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <title>My first three.js app</title>
-    <style>
-      body { margin: 0; }
-    </style>
-  </head>
-  <body>
-    <script type="module" src="/main.js"></script>
-  </body>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Audio Analyzer with Meyda</title>
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      font-family: Arial, sans-serif;
+      background-color: #000;
+      color: #fff;
+    }
+    
+    #controls {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      z-index: 100;
+      background-color: rgba(0, 0, 0, 0.7);
+      padding: 10px;
+      border-radius: 5px;
+    }
+    
+    button {
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      text-align: center;
+      text-decoration: none;
+      display: inline-block;
+      font-size: 14px;
+      margin: 4px 2px;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+    
+    button:hover {
+      background-color: #45a049;
+    }
+    
+    button:disabled {
+      background-color: #cccccc;
+      cursor: not-allowed;
+    }
+    
+    #status {
+      margin-top: 10px;
+      color: #ffcc00;
+    }
+  </style>
+</head>
+<body>
+  <div id="controls">
+    <button id="start-btn">Start Audio</button>
+    <button id="stop-btn">Stop Audio</button>
+    <div id="status">Initializing...</div>
+  </div>
+  
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.module.min.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+        "meyda": "https://cdnjs.cloudflare.com/ajax/libs/meyda/5.6.2/meyda.min.js"
+      }
+    }
+  </script>
+  <script type="module" src="main.js"></script>
+  
+  <script>
+    // Add event listeners for control buttons
+    document.getElementById('start-btn').addEventListener('click', () => {
+      if (window.appDebug) {
+        const analyzer = window.appDebug.getAnalyzer();
+        if (analyzer) analyzer.start();
+        window.appDebug.start();
+        document.getElementById('status').textContent = 'Audio analyzer running';
+      }
+    });
+    
+    document.getElementById('stop-btn').addEventListener('click', () => {
+      if (window.appDebug) {
+        const analyzer = window.appDebug.getAnalyzer();
+        if (analyzer) analyzer.stop();
+        window.appDebug.stop();
+        document.getElementById('status').textContent = 'Audio analyzer stopped';
+      }
+    });
+  </script>
+</body>
+</html>...
+    </div>
+  </div>
+  
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.module.min.js",
+        "meyda": "https://cdnjs.cloudflare.com/ajax/libs/meyda/5.6.2/meyda.min.js"
+      }
+    }
+  </script>
+  <script type="module" src="main.js"></script>
+  
+  <script>
+    // Add event listeners for control buttons
+    document.getElementById('start-btn').addEventListener('click', () => {
+      if (window.appDebug) {
+        const analyzer = window.appDebug.getAnalyzer();
+        if (analyzer) analyzer.start();
+        window.appDebug.start();
+        document.getElementById('status').textContent = 'Audio analyzer running';
+      }
+    });
+    
+    document.getElementById('stop-btn').addEventListener('click', () => {
+      if (window.appDebug) {
+        const analyzer = window.appDebug.getAnalyzer();
+        if (analyzer) analyzer.stop();
+        window.appDebug.stop();
+        document.getElementById('status').textContent = 'Audio analyzer stopped';
+      }
+    });
+  </script>
+</body>
 </html>
