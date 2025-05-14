@@ -24,7 +24,7 @@ export class AudioAnalyzer {
         // For transition detection
         this.fluxThreshold = 15;      // Adjust based on testing
         this.fluxHistory = [];
-        this.historySize = 30;        // Store 30 frames of history (~0.6 seconds at 60fps)
+        this.historySize = 300;        // Store 30 frames of history (~6 seconds at 60fps)
         this.transitionDetected = false;
         this.lastTransitionTime = 0;
         this.minTransitionInterval = 2000; // Min 2 seconds between detected transitions

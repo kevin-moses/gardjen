@@ -2,12 +2,13 @@
 import { AudioAnalyzer } from './audio/analyzer.js';
 import { AudioDisplay } from './audio/display.js';
 import { initVisualization } from './visuals/render.js';
+import { AudioToggler } from './audio/audiotoggler.js';
 
 // Audio components
 let audioAnalyzer = null;
 let audioDisplay = null;
 let visualRenderer = null;
-
+let audioToggler = null;
 // Animation loop variables
 let animationFrameId = null;
 let lastTime = 0;
@@ -16,14 +17,24 @@ let lastTime = 0;
 async function init() {
   console.log('Initializing application...');
   
-  // Initialize the audio analyzer
+  // Try to initialize the Meyda audio analyzer first
   audioAnalyzer = new AudioAnalyzer();
-  const audioInitSuccess = await audioAnalyzer.init();
+  let audioInitSuccess = await audioAnalyzer.init();
   
+  // If Meyda analyzer fails, try the fallback analyzer
   if (!audioInitSuccess) {
-    console.error('Failed to initialize audio analyzer. Please check microphone permissions.');
-    document.getElementById('status').textContent = 'Audio initialization failed. Please grant microphone permission and refresh.';
-    return;
+    console.warn('Meyda analyzer initialization failed. Trying fallback analyzer...');
+    audioAnalyzer = new FallbackAudioAnalyzer();
+    audioInitSuccess = await audioAnalyzer.init();
+    
+    if (!audioInitSuccess) {
+      console.error('All audio analyzers failed. Please check microphone permissions.');
+      document.getElementById('status').textContent = 'Audio initialization failed. Please grant microphone permission and refresh.';
+      return;
+    }
+    
+    console.log('Using fallback audio analyzer');
+    document.getElementById('status').textContent = 'Using fallback audio analyzer';
   }
   
   // Set up transition detection callback
@@ -36,6 +47,10 @@ async function init() {
   audioDisplay = new AudioDisplay();
   audioDisplay.init();
   audioDisplay.setAnalyzer(audioAnalyzer);
+  
+  // Add toggler for display elements
+  audioToggler = new AudioToggler();
+  audioToggler.init();
   
   // Initialize the existing visualization if needed
   visualRenderer = initVisualization();

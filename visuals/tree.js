@@ -23,7 +23,7 @@ export class LSystemPlant {
 
         // Growth timing
         this.growthTimer = 0;
-        this.growthRate = 100; // milliseconds between growth steps
+        this.growthRate = 300; // milliseconds between growth steps
         this.lastTimestamp = 0;
 
         // Visual properties
@@ -264,8 +264,17 @@ export class LSystemPlant {
         leaf.position.copy(position);
 
         // Orient leaf to face roughly upward but along branch direction
+        // Add randomness to the leaf direction
         const upVector = new THREE.Vector3(0, 1, 0);
-        const leafNormal = new THREE.Vector3(0, 0, 1);
+
+        // Create a perturbed normal for the leaf
+        const randomAxis = new THREE.Vector3(
+            Math.random() - 0.5,
+            Math.random() - 0.5,
+            Math.random() - 0.5
+        ).normalize();
+        const randomAngle = THREE.MathUtils.degToRad(10 + Math.random() * 20); // 10-30 degrees
+        const leafNormal = new THREE.Vector3(0, 0, 1).applyAxisAngle(randomAxis, randomAngle);
 
         // Blend between branch direction and world up
         const blendedUp = new THREE.Vector3()
