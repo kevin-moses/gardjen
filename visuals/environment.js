@@ -36,34 +36,3 @@ export function createGrassFloor(scene) {
   scene.add(floor);
   return floor;
 }
-
-export function createSkybox(scene) {
-  // Create a large sphere geometry
-  // Lower segment counts for better performance
-  const geometry = new THREE.SphereGeometry(500, 32, 16);
-  
-  
-  // Load sky texture
-  const textureLoader = new THREE.TextureLoader();
-  const skyTexture = textureLoader.load('../textures/sky.jpg');
-
-  // Use MeshBasicMaterial instead of MeshStandardMaterial
-  // This ensures the sky is unaffected by scene lighting
-  const skyMaterial = new THREE.MeshBasicMaterial({
-    map: skyTexture,
-    side: THREE.BackSide, // Important: we're inside the sphere
-    fog: false // Prevent fog from affecting the sky
-  });
-  console.log(skyMaterial.color)
-  
-  // Create and add the skybox to the scene
-  const skybox = new THREE.Mesh(geometry, skyMaterial);
-  console.log(skybox)
-  
-  // Make sure the skybox doesn't receive shadows
-  skybox.receiveShadow = false;
-  
-  // Add to scene
-  scene.add(skybox);
-  return skybox;
-}

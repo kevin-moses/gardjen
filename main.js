@@ -13,6 +13,15 @@ let audioToggler = null;
 let animationFrameId = null;
 let lastTime = 0;
 
+if (!localStorage.getItem('hasVisited')) {
+  // First time ever
+  localStorage.setItem('hasVisited', 'true');
+  console.log('Welcome, first-time visitor!');
+} else {
+  // Not the first time
+  console.log('Welcome back!');
+}
+
 // Initialize the application
 async function init() {
   console.log('Initializing application...');
