@@ -168,6 +168,7 @@ export class AudioAnalyzer {
 
     stop() {
         if (this.analyzer && this.isRunning) {
+            console.log(this.metrics);
             this.analyzer.stop();
             this.isRunning = false;
             console.log('Audio analyzer stopped');

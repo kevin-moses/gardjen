@@ -16,3 +16,14 @@ export const weed = {
     },
     angle: 40
 }
+
+export const maple = {
+    axiom: "A",
+    rules: {
+        "A": "F[+AL][-AR]",
+        "L": "F[+AL][-AR]",
+        "R": "F[+AL][-AR]",
+        "F": "FF"
+    },
+    angle: 35
+}

@@ -3,7 +3,7 @@ import * as THREE from 'three';
 export function createGrassFloor(scene) {
   // Create a heightfield geometry instead of a plane
   // More segments = more detailed hills (adjust for performance)
-  const width = 5000, depth = 5000;
+  const width = 1000, depth = 1000;
   const widthSegments = 100, depthSegments = 100;
   const geometry = new THREE.PlaneGeometry(width, depth, widthSegments, depthSegments);
   

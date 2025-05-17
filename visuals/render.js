@@ -7,14 +7,20 @@ import { sunsetTexture } from "../textures/colors";
 export class Renderer {
     constructor() {
         // Three.js setup
-        this.renderer = new THREE.WebGLRenderer({ antialias: true });
+        this.renderer = new THREE.WebGLRenderer({
+            antialias: true,
+            powerPreference: "high-performance",
+            alpha: false,
+            stencil: false
+        });
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(this.renderer.domElement);
-        
+
         this.camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 1000);
         this.camera.position.set(20, 20, 80);
         this.camera.lookAt(0, 0, 0);
-        
+        this.shadowsNeedUpdate = true;
+
         this.scene = new THREE.Scene();
         const gradientTexture = sunsetTexture;
         this.scene.background = gradientTexture;
@@ -57,18 +63,18 @@ export class Renderer {
         const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
         dirLight.position.set(10, 20, 15);
         this.scene.add(dirLight);
-        this.renderer.setClearColor(0x000000); 
+        this.renderer.setClearColor(0x000000);
         createGrassFloor(this.scene); // Add grass floor        
-        
+
         // Optional: Enable shadows for more realism
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         dirLight.castShadow = true;
-        
+
         // Initialize plants array - we can have multiple plants
         this.plants = [];
         this.lastPlantPosition = new THREE.Vector3(0, 0, 0);
-        
+
         // Timer for planting new trees
         this.treeTimer = 0;
         this.treeInterval = 60000; // 60 seconds
@@ -83,7 +89,7 @@ export class Renderer {
 
     init() {
         this.createNewPlant();
-            
+
         // Start animation loop
         this.animate();
         return true;
@@ -98,50 +104,62 @@ export class Renderer {
         yPos = Math.max(-300, Math.min(300, yPos));
         const position = new THREE.Vector3(xPos, 0, yPos);
         this.lastPlantPosition.copy(position);
-        
+        //  defined in radians
+        const orientation = Math.random() * 2 * Math.PI; 
         // Create plant with random characteristics
-        const plant = new LSystemPlant(this.scene, position);
+        console.log(orientation)
+        const plant = new LSystemPlant(this.scene, position, orientation);
 
         this.plants.push(plant);
-        
+
         console.log(`New plant created. Total plants: ${this.plants.length}`);
     }
-   
+
     animate(timestamp) {
-        requestAnimationFrame(this.animate);
-        
+        // Only request animation frame if something is growing or changing
+        let needsUpdate = false;
+        if (this.shadowsNeedUpdate) {
+            this.renderer.shadowMap.needsUpdate = true;
+            this.shadowsNeedUpdate = false;
+        }
+
         // Update tree planting timer
         if (timestamp) {
             const deltaTime = timestamp - (this.lastTimestamp || timestamp);
             this.lastTimestamp = timestamp;
-            
+
             this.treeTimer += deltaTime;
-            
-            // Plant a new tree every 20 seconds
+
             if (this.treeTimer >= this.treeInterval) {
                 this.treeTimer = 0;
                 this.createNewPlant();
+                needsUpdate = true;
+                this.shadowsNeedUpdate = true; // Update shadows when new plant is added
             }
         }
-        
+
         // Update controls for smooth damping effect
-        this.controls.update();
-        
-        // Update all plants and filter out any that are fully grown and inactive
-        let stillGrowing = false;
-        
+        if (this.controls.update()) {
+            needsUpdate = true;
+        }
+
+        // Update all plants and check if any are still growing
         for (let plant of this.plants) {
-            stillGrowing = !plant.isFullyGrown();
-            if (stillGrowing) {
+            if (!plant.isFullyGrown()) {
                 plant.update(timestamp);
-                continue; // No need to check further if one is still growing
+                needsUpdate = true;
+                this.shadowsNeedUpdate = true; // Update shadows if any plant is growing
             }
         }
-        
-        // Render the scene
-        this.renderer.render(this.scene, this.camera);
+
+        // Only render if something changed
+        if (needsUpdate) {
+            this.renderer.render(this.scene, this.camera);
+        }
+
+        requestAnimationFrame(this.animate);
     }
-    
+
     onWindowResize() {
         this.camera.aspect = window.innerWidth / window.innerHeight;
         this.camera.updateProjectionMatrix();

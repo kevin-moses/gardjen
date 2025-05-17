@@ -1,16 +1,15 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { weed, barnsley } from './rules';
+import { weed, barnsley, maple } from './rules';
 
 export class LSystemPlant {
-    constructor(scene, position = new THREE.Vector3(0, -30, 0)) {
+    constructor(scene, position = new THREE.Vector3(0, -30, 0), orientation = 0, sharedMaterials = null) {
         this.scene = scene;
-
-        // L-system configuration
-        this.axiom = weed.axiom;
-        this.rules = weed.rules;
-        this.angle = weed.angle;
+        this.orientation = orientation !== null ? orientation : Math.random() * Math.PI * 2;        // L-system configuration
+        this.axiom = maple.axiom;
+        this.rules = maple.rules;
+        this.angle = maple.angle;
 
         // Growth tracking
         this.currentSentence = this.axiom;
@@ -44,16 +43,116 @@ export class LSystemPlant {
         this.leaves = [];
         this.branchStack = [];
         this.position = position.clone(); // Start position
-        
+
         // 3D rotation reference frame (local coordinate system)
         this.direction = new THREE.Vector3(0, 1, 0); // Forward/heading direction (Y-axis)
         this.left = new THREE.Vector3(-1, 0, 0);     // Left direction (negative X-axis)
         this.up = new THREE.Vector3(0, 0, 1);        // Up direction (Z-axis)
+        this.applyBaseOrientation();
 
         // Bezier curve control for future flower petals
         this.curvePoints = [];
+        // Use shared materials if provided
+        if (sharedMaterials) {
+            this.branchMaterial = sharedMaterials.branch;
+            this.leafMaterial = sharedMaterials.leaf;
+        } else {
+            // Create materials as before
+            this.branchMaterial = new THREE.MeshStandardMaterial({
+                color: this.branchColor,
+                roughness: 0.8,
+                metalness: 0.1
+            });
+
+            this.leafMaterial = new THREE.MeshStandardMaterial({
+                color: this.leafColor,
+                side: THREE.DoubleSide,
+                roughness: 0.5,
+                metalness: 0.0
+            });
+        }
+        // Set up instanced meshes for leaves
+        const leafGeometry = this.createCrossLeaf()
+        leafGeometry.computeVertexNormals();
+        // Define leaf geometry
+
+        this.leafInstancedMesh = new THREE.InstancedMesh(
+            leafGeometry,
+            this.leafMaterial,
+            1000 // Maximum instances
+        );
+        this.leafInstancedMesh.count = 0; // Start with 0 instances
+        this.scene.add(this.leafInstancedMesh);
+
     }
 
+    // Apply the base orientation to the coordinate system
+    applyBaseOrientation() {
+        // Create rotation matrix for orientation around Y axis
+        const rotationMatrix = new THREE.Matrix4().makeRotationY(this.orientation);
+        console.log(this.orientation)
+        console.log(rotationMatrix)
+        // Apply rotation to direction vectors
+        this.direction.applyMatrix4(rotationMatrix);
+        this.left.applyMatrix4(rotationMatrix);
+        this.up.applyMatrix4(rotationMatrix);
+
+        // Ensure vectors remain orthogonal and normalized
+        this.direction.normalize();
+        this.left.normalize();
+        this.up.normalize();
+    }
+
+    createCrossLeaf() {
+        // Create a buffer geometry directly
+        const vertices = new Float32Array([
+            // First plane
+            -0.5, 0.0, -0.5,  // bottom left
+            0.5, 0.0, -0.5,  // bottom right
+            -0.5, 0.0, 0.5,  // top left
+            0.5, 0.0, 0.5,  // top right
+
+            // Second plane (rotated 60 degrees around Y)
+            -0.25, 0.0, -0.433,  // bottom left 
+            0.25, 0.0, -0.433,  // bottom right
+            -0.25, 0.0, 0.433,  // top left
+            0.25, 0.0, 0.433   // top right
+        ]);
+
+        // Define faces with indices
+        const indices = new Uint16Array([
+            0, 1, 2,  // first plane, triangle 1
+            2, 1, 3,  // first plane, triangle 2
+            4, 5, 6,  // second plane, triangle 1
+            6, 5, 7   // second plane, triangle 2
+        ]);
+
+        // Create UVs for texture mapping
+        const uvs = new Float32Array([
+            // First plane
+            0, 0,
+            1, 0,
+            0, 1,
+            1, 1,
+
+            // Second plane
+            0, 0,
+            1, 0,
+            0, 1,
+            1, 1
+        ]);
+
+        // Create the buffer geometry
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+        geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+        geometry.setIndex(new THREE.BufferAttribute(indices, 1));
+
+        // Compute normals for proper lighting
+        geometry.computeVertexNormals();
+
+        return geometry;
+    }
     // Generate the next iteration of the L-system
     generateNextIteration() {
         if (this.iterations >= this.maxIterations) return false;
@@ -86,22 +185,20 @@ export class LSystemPlant {
 
             switch (char) {
                 case 'F':
-                    // Calculate scaled dimensions
+                    // This should already work with oriented direction vector
                     const branchLength = this.baseBranchLength * Math.pow(this.branchLengthFactor, this.currentDepth);
                     const branchRadius = this.baseBranchRadius * Math.pow(this.branchRadiusFactor, this.currentDepth);
-                    
-                    // Save start position
+
                     lastBranchStart = this.position.clone();
-                    
-                    // Calculate and update position
+                    // Use existing direction vector (already oriented)
                     this.position.add(this.direction.clone().multiplyScalar(branchLength));
                     lastBranchEnd = this.position.clone();
-                    
-                    // Draw the branch
+
                     if (lastBranchStart && lastBranchEnd) {
                         this.drawCylindricalBranch(lastBranchStart, lastBranchEnd, branchRadius);
                     }
                     break;
+
 
                 case 'f':
                     // Move without drawing
@@ -207,15 +304,8 @@ export class LSystemPlant {
         // Move cylinder geometry so its base is at the origin
         geometry.translate(0, length / 2, 0);
 
-        // Create material
-        const material = new THREE.MeshStandardMaterial({
-            color: this.branchColor,
-            roughness: 0.8,
-            metalness: 0.1
-        });
-
         // Create the mesh
-        const cylinder = new THREE.Mesh(geometry, material);
+        const cylinder = new THREE.Mesh(geometry, this.branchMaterial);
 
         // Position at start point
         cylinder.position.copy(startPoint);
@@ -234,60 +324,40 @@ export class LSystemPlant {
         return cylinder;
     }
 
-    // Create a leaf at the given position
     createLeaf(position, direction, size) {
-        // Create a simple leaf shape
-        const leafGeometry = new THREE.BufferGeometry();
+        if (this.leafInstancedMesh.count >= 1000) return; // Max reached
 
-        // Define leaf as a triangular shape
-        const vertices = new Float32Array([
-            0, 0, 0,           // Base of leaf
-            -size, size, 0,    // Left point
-            size, size, 0      // Right point
-        ]);
+        // Create transformation components
+        const posVec = position.clone();
+        const scaleVec = new THREE.Vector3(size, size, size);
 
-        leafGeometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
-        leafGeometry.computeVertexNormals();
-
-        // Create a green material, brighter than branches
-        const leafMaterial = new THREE.MeshStandardMaterial({
-            color: this.leafColor,
-            side: THREE.DoubleSide,
-            roughness: 0.5,
-            metalness: 0.0
-        });
-
-        // Create mesh
-        const leaf = new THREE.Mesh(leafGeometry, leafMaterial);
-
-        // Position at the end of branch
-        leaf.position.copy(position);
-
-        // Orient leaf to face roughly upward but along branch direction
-        // Add randomness to the leaf direction
+        // Base orientation: align with direction
         const upVector = new THREE.Vector3(0, 1, 0);
+        const targetDir = direction.clone().normalize();
+        const quaternion = new THREE.Quaternion();
 
-        // Create a perturbed normal for the leaf
+        quaternion.setFromUnitVectors(upVector, targetDir);
+
+        // Add randomness to orientation
         const randomAxis = new THREE.Vector3(
             Math.random() - 0.5,
             Math.random() - 0.5,
             Math.random() - 0.5
         ).normalize();
         const randomAngle = THREE.MathUtils.degToRad(10 + Math.random() * 20); // 10-30 degrees
-        const leafNormal = new THREE.Vector3(0, 0, 1).applyAxisAngle(randomAxis, randomAngle);
+        const randomQuat = new THREE.Quaternion().setFromAxisAngle(randomAxis, randomAngle);
+        quaternion.multiply(randomQuat);
 
-        // Blend between branch direction and world up
-        const blendedUp = new THREE.Vector3()
-            .addVectors(direction, upVector)
-            .normalize();
+        // Create transformation matrix
+        const matrix = new THREE.Matrix4();
+        matrix.compose(posVec, quaternion, scaleVec);
 
-        leaf.quaternion.setFromUnitVectors(leafNormal, blendedUp);
+        // Set matrix for this instance
+        this.leafInstancedMesh.setMatrixAt(this.leafInstancedMesh.count, matrix);
+        this.leafInstancedMesh.count++;
+        this.leafInstancedMesh.instanceMatrix.needsUpdate = true;
 
-        // Add to scene and store
-        this.scene.add(leaf);
-        this.leaves.push(leaf); // Store in dedicated leaves array
-
-        return leaf;
+        return this.leafInstancedMesh.count - 1;
     }
 
     // Update the plant, called each animation frame
@@ -340,13 +410,19 @@ export class LSystemPlant {
         this.totalProcessedChars = 0;
         this.growthTimer = 0;
         this.currentDepth = 0;
-        
-        // Reset position and orientation
+
+        // Reset position and apply orientation again
         this.position = new THREE.Vector3(0, -30, 0);
+        
+        // Reset base vectors
         this.direction = new THREE.Vector3(0, 1, 0);
         this.left = new THREE.Vector3(-1, 0, 0);
         this.up = new THREE.Vector3(0, 0, 1);
         
+        // Apply the orientation to the reset vectors
+        this.applyBaseOrientation();
+        
+
         this.curvePoints = [];
     }
 
