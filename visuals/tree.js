@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { weed, barnsley, maple } from './rules';
+import { weed, barnsley, maple, simpleDaisy } from './rules';
 
 export class LSystemPlant {
     constructor(scene, position = new THREE.Vector3(0, -30, 0), orientation = 0, sharedMaterials = null) {
@@ -37,11 +37,13 @@ export class LSystemPlant {
 
         // Feature flags
         this.generateLeaves = true;
-
+        this.generateFlowers = true; // Add flag for flowers
         // Stored branches and growth state
         this.branches = [];
         this.leaves = [];
         this.branchStack = [];
+        this.flowers = []; // Add flower storage
+        this.petals = [];  // Add petal storage
         this.position = position.clone(); // Start position
 
         // 3D rotation reference frame (local coordinate system)
@@ -258,10 +260,17 @@ export class LSystemPlant {
                         const isTerminal = this.processedChars + 1 >= this.currentSentence.length ||
                             this.currentSentence[this.processedChars + 1] !== '[';
 
-                        // If terminal branch and leaf generation is enabled, add a leaf
-                        if (isTerminal && this.generateLeaves && this.currentDepth > 1) {
-                            const leafSize = 2 * Math.pow(0.9, this.currentDepth);
-                            this.createLeaf(this.position.clone(), this.direction.clone(), leafSize);
+                        // If terminal branch, add leaf or flower
+                        if (isTerminal && this.currentDepth > 1) {
+                            if (this.generateFlowers && Math.random() < 0.3 && this.currentDepth > 2) {
+                                // 30% chance to create a flower at deeper levels
+                                const flowerSize = 1.5 * Math.pow(0.9, this.currentDepth);
+                                this.createFlower(this.position.clone(), this.direction.clone(), flowerSize);
+                            } else if (this.generateLeaves) {
+                                // Otherwise create a leaf
+                                const leafSize = 2 * Math.pow(0.9, this.currentDepth);
+                                this.createLeaf(this.position.clone(), this.direction.clone(), leafSize);
+                            }
                         }
 
                         // Restore state
@@ -359,7 +368,93 @@ export class LSystemPlant {
 
         return this.leafInstancedMesh.count - 1;
     }
+    // New function to create flowers using Bezier curves
+    createFlower(position, direction, size) {
+        // Create flower using Bezier curves
+        const petalCount = 5 + Math.floor(Math.random() * 3); // 5-7 petals
+        const centerColor = new THREE.Color(0xFFF9C4); // Light yellow center
+        const petalColor = new THREE.Color(Math.random() > 0.5 ? 0xFF4081 : 0x9C27B0); // Pink or purple
 
+        // Create flower center (simple sphere)
+        const centerGeometry = new THREE.SphereGeometry(size * 0.15, 8, 8);
+        const centerMaterial = new THREE.MeshStandardMaterial({
+            color: centerColor,
+            roughness: 0.7,
+            metalness: 0.2
+        });
+        const center = new THREE.Mesh(centerGeometry, centerMaterial);
+        center.position.copy(position);
+        this.scene.add(center);
+
+        // Create petals using Bezier curves
+        for (let i = 0; i < petalCount; i++) {
+            const angle = (i / petalCount) * Math.PI * 2;
+            this.createPetal(position, direction, size, angle, petalColor);
+        }
+
+        // Store the flower center and return it (petals are stored in their own creation)
+        this.flowers.push(center);
+        return center;
+    }
+
+    // Helper function to create a single petal using a Bezier curve
+    createPetal(position, direction, size, angle, color) {
+        // Create a path for the petal using a quadratic Bezier curve
+        const curve = new THREE.QuadraticBezierCurve3(
+            new THREE.Vector3(0, 0, 0), // Start at center
+            new THREE.Vector3(size * 0.5, 0, size * 0.2), // Control point
+            new THREE.Vector3(size, 0, 0) // End point
+        );
+
+        // Sample the curve to create points
+        const points = curve.getPoints(10);
+        const petalShape = new THREE.Shape();
+
+        // Create a leaf-like shape around the curve
+        const petalWidth = size * 0.3;
+        petalShape.moveTo(0, 0);
+        petalShape.bezierCurveTo(
+            size * 0.3, petalWidth,
+            size * 0.7, petalWidth,
+            size, 0
+        );
+        petalShape.bezierCurveTo(
+            size * 0.7, -petalWidth,
+            size * 0.3, -petalWidth,
+            0, 0
+        );
+
+        // Create geometry from the shape
+        const petalGeometry = new THREE.ShapeGeometry(petalShape, 8);
+        const petalMaterial = new THREE.MeshStandardMaterial({
+            color: color,
+            side: THREE.DoubleSide,
+            roughness: 0.5,
+            metalness: 0.1
+        });
+
+        // Create mesh
+        const petal = new THREE.Mesh(petalGeometry, petalMaterial);
+
+        // Position and orient petal
+        petal.position.copy(position);
+
+        // Rotate petal around Y axis by the angle
+        petal.rotation.y = angle;
+
+        // Orient petal to match branch direction
+        const petalDirection = direction.clone();
+
+        // Add some random orientation for natural look
+        const randomTilt = THREE.MathUtils.degToRad(Math.random() * 20 - 10);
+        petal.rotation.x = randomTilt;
+
+        // Add to scene and store reference
+        this.scene.add(petal);
+        this.petals.push(petal);
+
+        return petal;
+    }
     // Update the plant, called each animation frame
     update(timestamp) {
         // Calculate delta time since last update
@@ -403,6 +498,8 @@ export class LSystemPlant {
         this.branches = [];
         this.leaves = [];
         this.branchStack = [];
+        this.flowers = []; // Reset flowers array
+        this.petals = [];  // Reset petals array
         this.currentSentence = this.axiom;
         this.nextSentence = "";
         this.iterations = 0;
@@ -413,15 +510,15 @@ export class LSystemPlant {
 
         // Reset position and apply orientation again
         this.position = new THREE.Vector3(0, -30, 0);
-        
+
         // Reset base vectors
         this.direction = new THREE.Vector3(0, 1, 0);
         this.left = new THREE.Vector3(-1, 0, 0);
         this.up = new THREE.Vector3(0, 0, 1);
-        
+
         // Apply the orientation to the reset vectors
         this.applyBaseOrientation();
-        
+
 
         this.curvePoints = [];
     }

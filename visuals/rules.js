@@ -27,3 +27,12 @@ export const maple = {
     },
     angle: 35
 }
+export const simpleDaisy = {
+  axiom: "X",
+  rules: {
+    "X": "F[-X][+X]FZ",
+    "F": "FF",
+    "Z": "Z"  // Flower symbol
+  },
+  angle: 25
+};
