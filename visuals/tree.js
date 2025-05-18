@@ -85,8 +85,44 @@ export class LSystemPlant {
         );
         this.leafInstancedMesh.count = 0; // Start with 0 instances
         this.scene.add(this.leafInstancedMesh);
+        // Create petal geometry (shared for all petals in this plant)
+        const petalGeometry = this.createPetalGeometry();
+
+        // Create flower center geometry (shared for all flower centers)
+        const centerGeometry = new THREE.SphereGeometry(1.0, 8, 8); // Unit size
+
+        // Create instanced meshes for this plant's flowers
+        this.petalInstancedMesh = new THREE.InstancedMesh(
+            petalGeometry,
+            new THREE.MeshStandardMaterial({
+                color: 0xFF4081, // Pink default
+                side: THREE.DoubleSide,
+                roughness: 0.5,
+                metalness: 0.1
+            }),
+            100 // Maximum petals per plant
+        );
+        this.petalInstancedMesh.count = 0;
+        this.scene.add(this.petalInstancedMesh);
+
+        this.flowerCenterInstancedMesh = new THREE.InstancedMesh(
+            centerGeometry,
+            new THREE.MeshStandardMaterial({
+                color: 0xFFF9C4, // Light yellow
+                roughness: 0.7,
+                metalness: 0.2
+            }),
+            20 // Maximum flower centers per plant
+        );
+        this.flowerCenterInstancedMesh.count = 0;
+        this.scene.add(this.flowerCenterInstancedMesh);
+
+        // Initialize counts
+        this.petalCount = 0;
+        this.flowerCount = 0;
 
     }
+
 
     // Apply the base orientation to the coordinate system
     applyBaseOrientation() {
@@ -333,6 +369,36 @@ export class LSystemPlant {
         return cylinder;
     }
 
+    createPetalGeometry() {
+        // Create a shape for the petal
+        const petalShape = new THREE.Shape();
+        const size = 1.0; // Unit size
+        const petalWidth = size * 0.3;
+
+        petalShape.moveTo(0, 0);
+        petalShape.bezierCurveTo(
+            size * 0.3, petalWidth,
+            size * 0.7, petalWidth,
+            size, 0
+        );
+        petalShape.bezierCurveTo(
+            size * 0.7, -petalWidth,
+            size * 0.3, -petalWidth,
+            0, 0
+        );
+
+        // Create geometry from the shape
+        const petalGeometry = new THREE.ShapeGeometry(petalShape, 8);
+
+        // Center the geometry at origin for proper transformations
+        petalGeometry.computeBoundingBox();
+        const center = new THREE.Vector3();
+        petalGeometry.boundingBox.getCenter(center);
+        petalGeometry.translate(-center.x, -center.y, -center.z);
+
+        return petalGeometry;
+    }
+
     createLeaf(position, direction, size) {
         if (this.leafInstancedMesh.count >= 1000) return; // Max reached
 
@@ -370,90 +436,105 @@ export class LSystemPlant {
     }
     // New function to create flowers using Bezier curves
     createFlower(position, direction, size) {
-        // Create flower using Bezier curves
+        if (this.flowerCount >= 20) return; // Maximum reached
+
+        // Use the proper index for the flower center
+        const centerIndex = this.flowerCount;
+
+        // Calculate appropriate scale for the center (sphere)
+        const centerSize = size * 0.15;
+
+        // Create a matrix for the flower center
+        const centerMatrix = new THREE.Matrix4();
+
+        // Position first, then scale (simpler approach)
+        const pos = position.clone();
+        const scale = new THREE.Vector3(centerSize, centerSize, centerSize);
+        const quaternion = new THREE.Quaternion(); // No rotation needed for sphere
+
+        // Compose the matrix directly
+        centerMatrix.compose(pos, quaternion, scale);
+
+        // Set the matrix for this instance
+        this.flowerCenterInstancedMesh.setMatrixAt(centerIndex, centerMatrix);
+
+        // Update the instanced mesh
+        this.flowerCount++;
+        this.flowerCenterInstancedMesh.count = this.flowerCount;
+        this.flowerCenterInstancedMesh.instanceMatrix.needsUpdate = true;
+
+        // Choose a color for petals
+        const petalColor = new THREE.Color(Math.random() > 0.5 ? 0xFF4081 : 0x9C27B0);
+
+        // Create petals around the center
         const petalCount = 5 + Math.floor(Math.random() * 3); // 5-7 petals
-        const centerColor = new THREE.Color(0xFFF9C4); // Light yellow center
-        const petalColor = new THREE.Color(Math.random() > 0.5 ? 0xFF4081 : 0x9C27B0); // Pink or purple
-
-        // Create flower center (simple sphere)
-        const centerGeometry = new THREE.SphereGeometry(size * 0.15, 8, 8);
-        const centerMaterial = new THREE.MeshStandardMaterial({
-            color: centerColor,
-            roughness: 0.7,
-            metalness: 0.2
-        });
-        const center = new THREE.Mesh(centerGeometry, centerMaterial);
-        center.position.copy(position);
-        this.scene.add(center);
-
-        // Create petals using Bezier curves
         for (let i = 0; i < petalCount; i++) {
             const angle = (i / petalCount) * Math.PI * 2;
             this.createPetal(position, direction, size, angle, petalColor);
         }
 
-        // Store the flower center and return it (petals are stored in their own creation)
-        this.flowers.push(center);
-        return center;
+        return centerIndex;
     }
 
-    // Helper function to create a single petal using a Bezier curve
     createPetal(position, direction, size, angle, color) {
-        // Create a path for the petal using a quadratic Bezier curve
-        const curve = new THREE.QuadraticBezierCurve3(
-            new THREE.Vector3(0, 0, 0), // Start at center
-            new THREE.Vector3(size * 0.5, 0, size * 0.2), // Control point
-            new THREE.Vector3(size, 0, 0) // End point
-        );
+        if (this.petalCount >= 100) return; // Maximum reached
 
-        // Sample the curve to create points
-        const points = curve.getPoints(10);
-        const petalShape = new THREE.Shape();
+        // Calculate the instance index
+        const instanceIndex = this.petalCount;
 
-        // Create a leaf-like shape around the curve
-        const petalWidth = size * 0.3;
-        petalShape.moveTo(0, 0);
-        petalShape.bezierCurveTo(
-            size * 0.3, petalWidth,
-            size * 0.7, petalWidth,
-            size, 0
-        );
-        petalShape.bezierCurveTo(
-            size * 0.7, -petalWidth,
-            size * 0.3, -petalWidth,
-            0, 0
-        );
+        // Replace the matrix creation section with this:
+        const matrix = new THREE.Matrix4();
 
-        // Create geometry from the shape
-        const petalGeometry = new THREE.ShapeGeometry(petalShape, 8);
-        const petalMaterial = new THREE.MeshStandardMaterial({
-            color: color,
-            side: THREE.DoubleSide,
-            roughness: 0.5,
-            metalness: 0.1
-        });
+        // Start with identity matrix
+        matrix.identity();
 
-        // Create mesh
-        const petal = new THREE.Mesh(petalGeometry, petalMaterial);
+        // First translate to position
+        matrix.setPosition(position.x, position.y, position.z);
 
-        // Position and orient petal
-        petal.position.copy(position);
+        // Then apply direction rotation (this rotates around the position)
+        const upVector = new THREE.Vector3(0, 1, 0);
+        const dirQuaternion = new THREE.Quaternion();
+        dirQuaternion.setFromUnitVectors(upVector, direction.normalize());
 
-        // Rotate petal around Y axis by the angle
-        petal.rotation.y = angle;
+        // Apply direction quaternion
+        const dirMatrix = new THREE.Matrix4().makeRotationFromQuaternion(dirQuaternion);
+        matrix.multiply(dirMatrix);
 
-        // Orient petal to match branch direction
-        const petalDirection = direction.clone();
+        // Apply angle rotation (rotate around local Y axis for petal arrangement)
+        const rotationY = new THREE.Matrix4().makeRotationY(angle);
+        matrix.multiply(rotationY);
 
-        // Add some random orientation for natural look
+        // Apply random tilt (around local X axis)
         const randomTilt = THREE.MathUtils.degToRad(Math.random() * 20 - 10);
-        petal.rotation.x = randomTilt;
+        const tiltMatrix = new THREE.Matrix4().makeRotationX(randomTilt);
+        matrix.multiply(tiltMatrix);
 
-        // Add to scene and store reference
-        this.scene.add(petal);
-        this.petals.push(petal);
+        // Apply small offset from center (to position petals around center)
+        // This moves the petal outward from the center point
+        const offset = size * 0.1; // Small offset
+        const offsetMatrix = new THREE.Matrix4().makeTranslation(0, 0, offset);
+        matrix.multiply(offsetMatrix);
 
-        return petal;
+        // Finally apply scale
+        const scaleMatrix = new THREE.Matrix4().makeScale(size, size, size);
+        matrix.multiply(scaleMatrix);
+
+        // Set the instance matrix
+        this.petalInstancedMesh.setMatrixAt(instanceIndex, matrix);
+
+        // Set the instance color
+        if (color) {
+            // If the material supports it, you could set instance colors
+            // For simplicity, we're just setting the material color for all petals
+            this.petalInstancedMesh.material.color.set(color);
+        }
+
+        // Update the instance
+        this.petalCount++;
+        this.petalInstancedMesh.count = this.petalCount;
+        this.petalInstancedMesh.instanceMatrix.needsUpdate = true;
+
+        return instanceIndex;
     }
     // Update the plant, called each animation frame
     update(timestamp) {
