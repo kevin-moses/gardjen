@@ -36,3 +36,21 @@ export const simpleDaisy = {
   },
   angle: 25
 };
+
+export const fern = {
+    axiom: "F",
+    rules: {
+        "F": "G+[[F]-F]-G[-GF]+F",
+        "G": "GG"
+    },
+    angle: 20
+}
+
+export const bush = {
+    axiom: "X",
+    rules: {
+        "X": "F[+X][-X]FX",
+        "F": "FF"
+    },
+    angle: 30
+}

@@ -24,37 +24,12 @@ export class Renderer {
         this.scene = new THREE.Scene();
         const gradientTexture = sunsetTexture;
         this.scene.background = gradientTexture;
-        // Add OrbitControls for camera manipulation
-        // Start camera 60 degrees counterclockwise (to the left) of current position
-        // Original: this.camera.position.set(20, 20, 80);
-        // 60 deg CCW around Y axis: x' = x*cos(θ) - z*sin(θ), z' = x*sin(θ) + z*cos(θ)
-        // θ = 60deg = Math.PI/3
-        const angle = Math.PI / 3;
-        const origX = 20, origZ = 80;
-        const newX = origX * Math.cos(angle) - origZ * Math.sin(angle);
-        const newZ = origX * Math.sin(angle) + origZ * Math.cos(angle);
-        this.camera.position.set(newX, 20, newZ);
-        this.camera.lookAt(0, 0, 0);
-
+        // Lock the camera in place: do not allow user to move or rotate
         this.controls = new OrbitControls(this.camera, this.renderer.domElement);
-        this.controls.enableDamping = true; // Add smooth damping effect
-        this.controls.dampingFactor = 0.05;
-        this.controls.screenSpacePanning = false; // Pan parallel to the screen
-        this.controls.minDistance = 10; // Minimum zoom distance
-        this.controls.maxDistance = 300; // Maximum zoom distance
-
-        // Limit azimuth angle to 90 degrees clockwise/counterclockwise from starting position
-        // Set min/max relative to current azimuthal angle
-        const startAzimuth = this.controls.getAzimuthalAngle();
-        const halfPi = Math.PI / 2;
-        this.controls.minAzimuthAngle = startAzimuth - halfPi;
-        this.controls.maxAzimuthAngle = startAzimuth + halfPi;
-
-        // Prevent camera from going under the x-y plane (keep in top hemisphere)
-        // Set both min and max polar angle to <= 90deg (Math.PI/2)
-        // To prevent tilting up above horizon, set maxPolarAngle just below 90deg
-        this.controls.minPolarAngle = THREE.MathUtils.degToRad(30); // 30 degrees in radians
-        this.controls.maxPolarAngle = THREE.MathUtils.degToRad(89); // Just below 90 degrees
+        this.controls.enableZoom = false;
+        this.controls.enableRotate = false;
+        this.controls.enablePan = false;
+        this.controls.enableDamping = false;
 
         // Replace ambient light with more dynamic lighting
         const ambientLight = new THREE.AmbientLight(0x404040, 0.5); // Dimmer ambient

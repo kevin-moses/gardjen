@@ -1,15 +1,15 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { weed, barnsley, maple, simpleDaisy } from './rules';
+import { weed, barnsley, maple, simpleDaisy, fern, bush } from './rules';
 
 export class LSystemPlant {
     constructor(scene, position = new THREE.Vector3(0, -30, 0), orientation = 0, sharedMaterials = null) {
         this.scene = scene;
         this.orientation = orientation !== null ? orientation : Math.random() * Math.PI * 2;        // L-system configuration
-        this.axiom = maple.axiom;
-        this.rules = maple.rules;
-        this.angle = maple.angle;
+        this.axiom = bush.axiom;
+        this.rules = bush.rules;
+        this.angle = bush.angle;
 
         // Growth tracking
         this.currentSentence = this.axiom;
