@@ -16,3 +16,5 @@ TODO List
 [] add new trees
 [] sync first tree to audio passing threshold
 [] spawn new trees if audio is playing, with features from audio
+
+thick & creamy
