@@ -2,8 +2,9 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 import { LSystemPlant } from "./tree";
-import { createGrassFloor } from "./environment";
+import { createGrassFloor, calculateHeight } from "./environment";
 import { sunsetTexture } from "../textures/colors";
+
 export class Renderer {
     constructor() {
         // Three.js setup
@@ -17,17 +18,17 @@ export class Renderer {
         document.body.appendChild(this.renderer.domElement);
 
         this.camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 1000);
-        this.camera.position.set(20, 20, 80);
+        this.camera.position.set(10, 29, 133);
         this.camera.lookAt(0, 0, 0);
         this.shadowsNeedUpdate = true;
 
         this.scene = new THREE.Scene();
-        const gradientTexture = sunsetTexture;
-        this.scene.background = gradientTexture;
+        this.scene.background = sunsetTexture;
+
         // Lock the camera in place: do not allow user to move or rotate
         this.controls = new OrbitControls(this.camera, this.renderer.domElement);
-        this.controls.enableZoom = false;
-        this.controls.enableRotate = false;
+        this.controls.enableZoom = true;
+        this.controls.enableRotate = true;
         this.controls.enablePan = false;
         this.controls.enableDamping = false;
 
@@ -35,8 +36,8 @@ export class Renderer {
         const ambientLight = new THREE.AmbientLight(0x404040, 0.5); // Dimmer ambient
         this.scene.add(ambientLight);
         // Add directional light for shadows and definition
-        const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
-        dirLight.position.set(10, 20, 15);
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1.5); // Increased intensity to 1.5
+        dirLight.position.set(150, 100, 10); // Positioned to the right and above camera
         this.scene.add(dirLight);
         this.renderer.setClearColor(0x000000);
         createGrassFloor(this.scene); // Add grass floor        
@@ -48,11 +49,6 @@ export class Renderer {
 
         // Initialize plants array - we can have multiple plants
         this.plants = [];
-        this.lastPlantPosition = new THREE.Vector3(0, 0, 0);
-
-        // Timer for planting new trees
-        this.treeTimer = 0;
-        this.treeInterval = 60000; // 60 seconds
         this.lastTimestamp = 0;
 
         // Handle window resize
@@ -64,30 +60,58 @@ export class Renderer {
 
     init() {
         this.createNewPlant();
-
-        // Start animation loop
         this.animate();
         return true;
     }
 
     createNewPlant() {
-        const angle = Math.random() * 2 * Math.PI;
-        const radius = Math.random() * 30;
-        let xPos = this.lastPlantPosition.x + Math.cos(angle) * radius;
-        let yPos = this.lastPlantPosition.z + Math.sin(angle) * radius;
-        xPos = Math.max(-300, Math.min(300, xPos));
-        yPos = Math.max(-300, Math.min(300, yPos));
-        const position = new THREE.Vector3(xPos, 0, yPos);
-        this.lastPlantPosition.copy(position);
-        //  defined in radians
-        const orientation = Math.random() * 2 * Math.PI; 
-        // Create plant with random characteristics
-        console.log(orientation)
-        const plant = new LSystemPlant(this.scene, position, orientation);
-
+        // Get camera's look direction
+        const cameraDirection = new THREE.Vector3();
+        this.camera.getWorldDirection(cameraDirection);
+        
+        // Calculate the camera's field of view in radians
+        const fov = THREE.MathUtils.degToRad(this.camera.fov);
+        const aspect = this.camera.aspect;
+        
+        // Choose a reasonable distance range for plant placement
+        const minDistance = 20;  // Minimum distance from camera
+        const maxDistance = 80;  // Maximum distance from camera
+        const distance = minDistance + Math.random() * (maxDistance - minDistance);
+        
+        // Calculate maximum offsets at this distance
+        const maxXOffset = Math.tan(fov / 2) * distance * aspect;
+        const maxYOffset = Math.tan(fov / 2) * distance * 0.5;
+        
+        // Generate random position within view frustum
+        const xOffset = (Math.random() - 0.5) * maxXOffset;
+        const yOffset = (Math.random() - 0.5) * maxYOffset;
+        
+        // Calculate position in world space
+        const right = new THREE.Vector3();
+        right.crossVectors(cameraDirection, new THREE.Vector3(0, 1, 0)).normalize();
+        const up = new THREE.Vector3(0, 1, 0);
+        
+        const position = new THREE.Vector3()
+            .copy(this.camera.position)
+            .add(cameraDirection.clone().multiplyScalar(distance))
+            .add(right.multiplyScalar(xOffset))
+            .add(up.multiplyScalar(yOffset));
+        
+        // Calculate height at the position
+        const height = calculateHeight(position.x, position.z);
+        const plantPosition = new THREE.Vector3(position.x, height, position.z);
+        
+        // Project camera direction onto XZ plane for orientation
+        cameraDirection.y = 0;
+        cameraDirection.normalize();
+        
+        // Calculate angle between camera direction and positive Z axis
+        
+        // Create plant with calculated position and orientation
+        const plant = new LSystemPlant(this.scene, plantPosition, null);
         this.plants.push(plant);
-
-        console.log(`New plant created. Total plants: ${this.plants.length}`);
+        
+        console.log(`New plant created at ${plantPosition.x}, ${plantPosition.y}, ${plantPosition.z}`);
     }
 
     animate(timestamp) {
@@ -98,22 +122,16 @@ export class Renderer {
             this.shadowsNeedUpdate = false;
         }
 
-        // Update tree planting timer
         if (timestamp) {
-            const deltaTime = timestamp - (this.lastTimestamp || timestamp);
             this.lastTimestamp = timestamp;
 
-            this.treeTimer += deltaTime;
-
-            if (this.treeTimer >= this.treeInterval) {
-                this.treeTimer = 0;
+            if (this.plants.every(plant => plant.isFullyGrown())) {
                 this.createNewPlant();
                 needsUpdate = true;
-                this.shadowsNeedUpdate = true; // Update shadows when new plant is added
+                this.shadowsNeedUpdate = true;
             }
         }
 
-        // Update controls for smooth damping effect
         if (this.controls.update()) {
             needsUpdate = true;
         }
@@ -123,11 +141,10 @@ export class Renderer {
             if (!plant.isFullyGrown()) {
                 plant.update(timestamp);
                 needsUpdate = true;
-                this.shadowsNeedUpdate = true; // Update shadows if any plant is growing
+                this.shadowsNeedUpdate = true;
             }
         }
 
-        // Only render if something changed
         if (needsUpdate) {
             this.renderer.render(this.scene, this.camera);
         }

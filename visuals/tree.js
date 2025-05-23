@@ -1,43 +1,47 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { weed, barnsley, maple, simpleDaisy, fern, bush } from './rules';
+import { weed, barnsley, maple, simpleDaisy, fern, smallFern, bush, sunflower } from './rules';
 
 export class LSystemPlant {
+    // Static shared geometry
+    static sharedLeafGeometry = null;
+
     constructor(scene, position = new THREE.Vector3(0, -30, 0), orientation = 0, sharedMaterials = null) {
         this.scene = scene;
-        this.orientation = orientation !== null ? orientation : Math.random() * Math.PI * 2;        // L-system configuration
-        this.axiom = bush.axiom;
-        this.rules = bush.rules;
-        this.angle = bush.angle;
+        this.orientation = orientation !== null ? orientation : Math.random() * Math.PI / 2;        // L-system configuration
+        console.log(this.orientation)
+        this.axiom = maple.axiom;
+        this.rules = maple.rules;
+        this.angle = maple.angle;
+        this.generateLeaves = maple.generate.leaves;
+        this.generateFlowers = maple.generate.flowers; 
 
         // Growth tracking
         this.currentSentence = this.axiom;
         this.nextSentence = "";
         this.iterations = 0;
-        this.maxIterations = 5;
+        this.maxIterations = 4;
         this.currentDepth = 0;
         this.processedChars = 0;
         this.totalProcessedChars = 0;
 
         // Growth timing
         this.growthTimer = 0;
-        this.growthRate = 300; // milliseconds between growth steps
+        this.growthRate = 500; // milliseconds between growth steps
         this.lastTimestamp = 0;
 
         // Visual properties
-        this.baseBranchLength = 0.5;
-        this.baseBranchRadius = 0.2;
-        this.branchColor = 0x00ff00;
+        this.baseBranchLength = maple.branch.baseLength;
+        this.baseBranchRadius = maple.branch.baseRadius;
+        this.branchColor = new THREE.Color(maple.branch.color.red, maple.branch.color.green, maple.branch.color.blue);
         this.leafColor = 0x228B22; // Forest green
 
         // Scaling factors
-        this.branchLengthFactor = 0.8; // Each branch level is 80% of parent's length
-        this.branchRadiusFactor = 0.7; // Each branch level is 70% of parent's radius
+        this.branchLengthFactor = maple.branch.lengthFactor; // Each branch level is 80% of parent's length
+        this.branchRadiusFactor = maple.branch.radiusFactor; // Each branch level is 70% of parent's radius
 
-        // Feature flags
-        this.generateLeaves = true;
-        this.generateFlowers = true; // Add flag for flowers
+
         // Stored branches and growth state
         this.branches = [];
         this.leaves = [];
@@ -73,13 +77,21 @@ export class LSystemPlant {
                 metalness: 0.0
             });
         }
-        // Set up instanced meshes for leaves
-        const leafGeometry = this.createCrossLeaf()
-        leafGeometry.computeVertexNormals();
-        // Define leaf geometry
 
+        // Create this plant's unique leaf geometry
+        const leafParams = {
+            type: 'maple',
+            width: maple.leaf.width.min,
+            length: maple.leaf.length.min,
+            archStrength: maple.leaf.archStrength.min
+        };
+        console.log(leafParams);
+        this.leafGeometry = this.createLeafGeometry(leafParams.type, leafParams.width, leafParams.length, leafParams.archStrength);
+        this.leafGeometry.computeVertexNormals();
+
+        // Set up instanced meshes for leaves using this plant's geometry
         this.leafInstancedMesh = new THREE.InstancedMesh(
-            leafGeometry,
+            this.leafGeometry,
             this.leafMaterial,
             1000 // Maximum instances
         );
@@ -141,56 +153,121 @@ export class LSystemPlant {
         this.up.normalize();
     }
 
-    createCrossLeaf() {
-        // Create a buffer geometry directly
-        const vertices = new Float32Array([
-            // First plane
-            -0.5, 0.0, -0.5,  // bottom left
-            0.5, 0.0, -0.5,  // bottom right
-            -0.5, 0.0, 0.5,  // top left
-            0.5, 0.0, 0.5,  // top right
+    createLeafGeometry(type = 'serrated', width = 0.5, length = 0.5, archStrength = 3.0) {
+        const shape = new THREE.Shape();
+        const halfWidth = width * 0.5;
+        const halfLength = length * 0.5;
+        console.log(type, width, length, archStrength)
+        switch(type) {
+            case 'maple':
+                shape.moveTo(0, -halfLength);
+                shape.lineTo(0, halfLength);
+                shape.bezierCurveTo(
+                    -halfWidth * 0.8, halfLength * 0.8,
+                    -halfWidth, halfLength * 0.4,
+                    -halfWidth * 0.6, 0
+                );
+                shape.bezierCurveTo(
+                    -halfWidth * 0.8, -halfLength * 0.4,
+                    -halfWidth, -halfLength * 0.8,
+                    0, -halfLength
+                );
+                shape.bezierCurveTo(
+                    halfWidth, -halfLength * 0.8,
+                    halfWidth * 0.8, -halfLength * 0.4,
+                    halfWidth * 0.6, 0
+                );
+                shape.bezierCurveTo(
+                    halfWidth, halfLength * 0.4,
+                    halfWidth * 0.8, halfLength * 0.8,
+                    0, halfLength
+                );
+                break;
+            case 'oval':
+                shape.moveTo(0, -halfLength);
+                shape.bezierCurveTo(
+                    halfWidth, -halfLength,
+                    halfWidth, halfLength,
+                    0, halfLength
+                );
+                shape.bezierCurveTo(
+                    -halfWidth, halfLength,
+                    -halfWidth, -halfLength,
+                    0, -halfLength
+                );
+                break;
+            case 'serrated':
+                const segments = 8;
+                const segmentLength = length / segments;
+                const serrationSize = width * 0.1;
+                shape.moveTo(0, -halfLength);
+                for (let i = 0; i < segments; i++) {
+                    const y = -halfLength + (i + 0.5) * segmentLength;
+                    const x = halfWidth * (1 - Math.abs(i - segments/2) / (segments/2));
+                    if (i < segments - 1) {
+                        shape.bezierCurveTo(
+                            x + serrationSize, y,
+                            x + serrationSize, y + segmentLength * 0.5,
+                            x, y + segmentLength
+                        );
+                    }
+                }
+                for (let i = segments - 1; i >= 0; i--) {
+                    const y = -halfLength + (i + 0.5) * segmentLength;
+                    const x = -halfWidth * (1 - Math.abs(i - segments/2) / (segments/2));
+                    if (i > 0) {
+                        shape.bezierCurveTo(
+                            x - serrationSize, y,
+                            x - serrationSize, y - segmentLength * 0.5,
+                            x, y - segmentLength
+                        );
+                    }
+                }
+                break;
+            default:
+                shape.moveTo(0, -halfLength);
+                shape.bezierCurveTo(
+                    halfWidth * 0.8, -halfLength * 0.5,
+                    halfWidth * 0.8, halfLength * 0.5,
+                    0, halfLength
+                );
+                shape.bezierCurveTo(
+                    -halfWidth * 0.8, halfLength * 0.5,
+                    -halfWidth * 0.8, -halfLength * 0.5,
+                    0, -halfLength
+                );
+        }
 
-            // Second plane (rotated 60 degrees around Y)
-            -0.25, 0.0, -0.433,  // bottom left 
-            0.25, 0.0, -0.433,  // bottom right
-            -0.25, 0.0, 0.433,  // top left
-            0.25, 0.0, 0.433   // top right
-        ]);
+        const geometry = new THREE.ShapeGeometry(shape, 32);
 
-        // Define faces with indices
-        const indices = new Uint16Array([
-            0, 1, 2,  // first plane, triangle 1
-            2, 1, 3,  // first plane, triangle 2
-            4, 5, 6,  // second plane, triangle 1
-            6, 5, 7   // second plane, triangle 2
-        ]);
+        // Arch the leaf: curve along the length (y axis) and outward from the branch
+        const positions = geometry.attributes.position;
+        for (let i = 0; i < positions.count; i++) {
+            const x = positions.getX(i);
+            const y = positions.getY(i);
+            let z = positions.getZ(i);
 
-        // Create UVs for texture mapping
-        const uvs = new Float32Array([
-            // First plane
-            0, 0,
-            1, 0,
-            0, 1,
-            1, 1,
+            // y runs from -halfLength (base) to +halfLength (tip)
+            const t = (y + halfLength) / length; // 0 at base, 1 at tip
+            // Outward arch (x-y plane): move tip further from branch
+            const archOut = archStrength * Math.sin(Math.PI * t) * (1 - Math.abs(x) / halfWidth);
+            // Downward arch (z): droop more at the tip
+            const archDown = -archStrength * Math.pow(t, 2);
 
-            // Second plane
-            0, 0,
-            1, 0,
-            0, 1,
-            1, 1
-        ]);
-
-        // Create the buffer geometry
-        const geometry = new THREE.BufferGeometry();
-        geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
-        geometry.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
-        geometry.setIndex(new THREE.BufferAttribute(indices, 1));
-
-        // Compute normals for proper lighting
+            // Combine effects
+            positions.setXYZ(
+                i,
+                x + archOut, // move outward
+                y,
+                z + archDown // droop downward
+            );
+        }
+        positions.needsUpdate = true;
         geometry.computeVertexNormals();
-
         return geometry;
     }
+
+
     // Generate the next iteration of the L-system
     generateNextIteration() {
         if (this.iterations >= this.maxIterations) return false;
@@ -289,23 +366,24 @@ export class LSystemPlant {
                     });
                     this.currentDepth++;
                     break;
-
                 case ']': // Pop state, decrease depth, and possibly add a leaf
                     if (this.branchStack.length > 0) {
-                        // Check if this is a terminal branch (no children)
-                        const isTerminal = this.processedChars + 1 >= this.currentSentence.length ||
-                            this.currentSentence[this.processedChars + 1] !== '[';
+                        // A branch is terminal if the next character is not a movement or branch command
+                        const nextChar = this.currentSentence[this.processedChars + 1];
+                        const isTerminal = (
+                            this.processedChars + 1 >= this.currentSentence.length ||
+                            !['[', 'F', 'f'].includes(nextChar)
+                        );
 
-                        // If terminal branch, add leaf or flower
-                        if (isTerminal && this.currentDepth > 1) {
-                            if (this.generateFlowers && Math.random() < 0.3 && this.currentDepth > 2) {
-                                // 30% chance to create a flower at deeper levels
-                                const flowerSize = 1.5 * Math.pow(0.9, this.currentDepth);
-                                this.createFlower(this.position.clone(), this.direction.clone(), flowerSize);
-                            } else if (this.generateLeaves) {
-                                // Otherwise create a leaf
-                                const leafSize = 2 * Math.pow(0.9, this.currentDepth);
-                                this.createLeaf(this.position.clone(), this.direction.clone(), leafSize);
+                        if (isTerminal && this.generateLeaves && this.currentDepth > 1) {
+                            const leafSize = Math.pow(0.9, this.currentDepth);
+                            const leavesPerNode = 3;
+                            for (let i = 0; i < leavesPerNode; i++) {
+                                this.createLeaf(this.position.clone(), this.direction.clone(), leafSize, {
+                                    distribution: 'systematic',
+                                    index: i,
+                                    total: leavesPerNode
+                                });
                             }
                         }
 
@@ -399,35 +477,54 @@ export class LSystemPlant {
         return petalGeometry;
     }
 
-    createLeaf(position, direction, size) {
-        if (this.leafInstancedMesh.count >= 1000) return; // Max reached
+    createLeaf(position, direction, size, options = {}) {
+        if (this.leafInstancedMesh.count >= 1000) return;
 
-        // Create transformation components
         const posVec = position.clone();
         const scaleVec = new THREE.Vector3(size, size, size);
 
-        // Base orientation: align with direction
+        // Align with branch direction
         const upVector = new THREE.Vector3(0, 1, 0);
         const targetDir = direction.clone().normalize();
-        const quaternion = new THREE.Quaternion();
-
+        let quaternion = new THREE.Quaternion();
         quaternion.setFromUnitVectors(upVector, targetDir);
 
-        // Add randomness to orientation
-        const randomAxis = new THREE.Vector3(
-            Math.random() - 0.5,
-            Math.random() - 0.5,
-            Math.random() - 0.5
-        ).normalize();
-        const randomAngle = THREE.MathUtils.degToRad(10 + Math.random() * 20); // 10-30 degrees
-        const randomQuat = new THREE.Quaternion().setFromAxisAngle(randomAxis, randomAngle);
-        quaternion.multiply(randomQuat);
+        // --- Radial distribution logic ---
+        // Choose distribution strategy based on options or plant type
+        // options.distribution = 'systematic';
+        // options.index = 1;
+        // options.total = 3;
+        options.randomTilt = true;
+        let angle = 0;
+        if (options.distribution === 'systematic' && typeof options.index === 'number' && typeof options.total === 'number') {
+            // Systematic: evenly distribute around the branch
+            const goldenAngle = 137.5 * Math.PI / 180;
+            const leafIndex = options.index;
+            angle = (leafIndex * goldenAngle) % (2 * Math.PI);
+        } else {
+            // Default: random distribution
+            angle = Math.random() * Math.PI * 2;
+        }
+        const aroundBranchQuat = new THREE.Quaternion();
+        aroundBranchQuat.setFromAxisAngle(targetDir, angle);
+        quaternion.premultiply(aroundBranchQuat);
 
-        // Create transformation matrix
+        // Optional: add a small random tilt for natural look
+        if (options.randomTilt !== false) {
+            const randomAxis = new THREE.Vector3(
+                Math.random() - 0.5,
+                Math.random() - 0.5,
+                Math.random() - 0.5
+            ).normalize();
+            const randomAngle = THREE.MathUtils.degToRad(10 + Math.random() * 20); // 10-30 degrees
+            const randomQuat = new THREE.Quaternion().setFromAxisAngle(randomAxis, randomAngle);
+            quaternion.multiply(randomQuat);
+        }
+
+        // Compose transformation
         const matrix = new THREE.Matrix4();
         matrix.compose(posVec, quaternion, scaleVec);
 
-        // Set matrix for this instance
         this.leafInstancedMesh.setMatrixAt(this.leafInstancedMesh.count, matrix);
         this.leafInstancedMesh.count++;
         this.leafInstancedMesh.instanceMatrix.needsUpdate = true;

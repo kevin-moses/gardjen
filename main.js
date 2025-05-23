@@ -9,11 +9,6 @@ let audioAnalyzer = null;
 let audioDisplay = null;
 let visualRenderer = null;
 let audioToggler = null;
-let audioCycleTimeout = null;
-let isAudioAnalyzing = false;
-// Animation loop variables
-let animationFrameId = null;
-let lastTime = 0;
 
 if (!localStorage.getItem('hasVisited')) {
   // First time ever
@@ -22,40 +17,6 @@ if (!localStorage.getItem('hasVisited')) {
 } else {
   // Not the first time
   console.log('Welcome back!');
-}
-
-function startAudioCycle() {
-  if (isAudioAnalyzing) return;
-  isAudioAnalyzing = true;
-  audioAnalyzer.start();
-  document.getElementById('status').textContent = 'Audio analyzer running (10s)';
-  console.log('Audio analysis started for 10 seconds');
-
-  // Stop after 10 seconds
-  audioCycleTimeout = setTimeout(() => {
-    audioAnalyzer.stop();
-    isAudioAnalyzing = false;
-    document.getElementById('status').textContent = 'Audio analyzer paused (50s)';
-    console.log('Audio analysis stopped, waiting 50 seconds');
-
-    // Wait 50 seconds, then start again
-    audioCycleTimeout = setTimeout(() => {
-      startAudioCycle();
-    }, 50000);
-  }, 10000);
-}
-
-function stopAudioCycle() {
-  if (audioCycleTimeout) {
-    clearTimeout(audioCycleTimeout);
-    audioCycleTimeout = null;
-  }
-  if (isAudioAnalyzing && audioAnalyzer) {
-    audioAnalyzer.stop();
-    console.log(audioAnalyzer.metrics);
-    isAudioAnalyzing = false;
-    document.getElementById('status').textContent = 'Audio analyzer stopped';
-  }
 }
 
 async function init() {
@@ -99,16 +60,15 @@ async function init() {
   // Initialize the existing visualization if needed
   visualRenderer = initVisualization();
   
-  // Start the audio analyzer cycle (10s on, 50s off)
-  startAudioCycle();
+  // Start the audio analyzer ONCE and keep it running
+  audioAnalyzer.start();
   
   // Start the animation loop
   startAnimationLoop();
   
   console.log('Application initialized successfully');
-  document.getElementById('status').textContent = 'Audio analyzer running (10s)';
+  document.getElementById('status').textContent = 'Audio analyzer running';
 }
-
 
 // Animation loop function
 function animationLoop(currentTime) {
@@ -154,18 +114,15 @@ function stopAnimationLoop() {
 // Clean up resources
 function cleanup() {
   stopAnimationLoop();
-  stopAudioCycle();
-  
+  // No need to stop audio cycle, just dispose analyzer
   if (audioAnalyzer) {
     audioAnalyzer.dispose();
     audioAnalyzer = null;
   }
-  
   if (audioDisplay) {
     audioDisplay.dispose();
     audioDisplay = null;
   }
-  
   console.log('Application resources cleaned up');
 }
 
@@ -182,7 +139,5 @@ window.appDebug = {
     if (audioAnalyzer) {
       audioAnalyzer.setFluxThreshold(value);
     }
-  },
-  startAudioCycle,
-  stopAudioCycle
+  }
 };
