@@ -2,8 +2,11 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
 import { LSystemPlant } from "./tree";
+import { LSystemFlower } from "./flower";
 import { createGrassFloor, calculateHeight } from "./environment";
 import { sunsetTexture } from "../textures/colors";
+import { floatToColor } from "./flower";
+import { maple, weed, simpleDaisy } from "./rules";
 
 export class Renderer {
     constructor() {
@@ -47,9 +50,11 @@ export class Renderer {
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         dirLight.castShadow = true;
 
-        // Initialize plants array - we can have multiple plants
+        // Initialize plants and flowers arrays
         this.plants = [];
+        this.flowers = [];
         this.lastTimestamp = 0;
+        this.lastFlowerTimestamp = 0;
 
         // Handle window resize
         window.addEventListener('resize', this.onWindowResize.bind(this));
@@ -60,6 +65,7 @@ export class Renderer {
 
     init() {
         this.createNewPlant();
+        this.createNewFlower();
         this.animate();
         return true;
     }
@@ -108,10 +114,58 @@ export class Renderer {
         // Calculate angle between camera direction and positive Z axis
         
         // Create plant with calculated position and orientation
-        const plant = new LSystemPlant(this.scene, plantPosition, null);
+        console.log("maple", maple);
+        const plant = new LSystemPlant(this.scene, plantPosition, null, maple);
         this.plants.push(plant);
         
         console.log(`New plant created at ${plantPosition.x}, ${plantPosition.y}, ${plantPosition.z}`);
+    }
+
+    createNewFlower() {
+        // Get camera's look direction
+        const cameraDirection = new THREE.Vector3();
+        this.camera.getWorldDirection(cameraDirection);
+        
+        // Calculate the camera's field of view in radians
+        const fov = THREE.MathUtils.degToRad(this.camera.fov);
+        const aspect = this.camera.aspect;
+        
+        // Choose a reasonable distance range for flower placement
+        const minDistance = 20;  // Minimum distance from camera
+        const maxDistance = 80;  // Maximum distance from camera
+        const distance = minDistance + Math.random() * (maxDistance - minDistance);
+        
+        // Calculate maximum offsets at this distance
+        const maxXOffset = Math.tan(fov / 2) * distance * aspect;
+        const maxYOffset = Math.tan(fov / 2) * distance * 0.5;
+        
+        // Generate random position within view frustum
+        const xOffset = (Math.random() - 0.5) * maxXOffset;
+        const yOffset = (Math.random() - 0.5) * maxYOffset;
+        
+        // Calculate position in world space
+        const right = new THREE.Vector3();
+        right.crossVectors(cameraDirection, new THREE.Vector3(0, 1, 0)).normalize();
+        const up = new THREE.Vector3(0, 1, 0);
+        
+        const position = new THREE.Vector3()
+            .copy(this.camera.position)
+            .add(cameraDirection.clone().multiplyScalar(distance))
+            .add(right.multiplyScalar(xOffset))
+            .add(up.multiplyScalar(yOffset));
+        
+        // Calculate height at the position
+        const height = calculateHeight(position.x, position.z);
+        const flowerPosition = new THREE.Vector3(position.x, height, position.z);
+        
+        // Project camera direction onto XZ plane for orientation
+        cameraDirection.y = 0;
+        cameraDirection.normalize();
+        
+        // Create flower with calculated position and orientation
+        const flower = new LSystemFlower(this.scene, flowerPosition, null, simpleDaisy);
+        this.flowers.push(flower);
+        console.log("new flower created at ", flowerPosition.x, flowerPosition.y, flowerPosition.z);
     }
 
     animate(timestamp) {
@@ -125,8 +179,16 @@ export class Renderer {
         if (timestamp) {
             this.lastTimestamp = timestamp;
 
+            // Check if all plants are fully grown
             if (this.plants.every(plant => plant.isFullyGrown())) {
                 this.createNewPlant();
+                needsUpdate = true;
+                this.shadowsNeedUpdate = true;
+            }
+
+            // Check if all flowers are fully grown (with different timing)
+            if (this.flowers.every(flower => flower.isFullyGrown())) {
+                this.createNewFlower();
                 needsUpdate = true;
                 this.shadowsNeedUpdate = true;
             }
@@ -140,6 +202,15 @@ export class Renderer {
         for (let plant of this.plants) {
             if (!plant.isFullyGrown()) {
                 plant.update(timestamp);
+                needsUpdate = true;
+                this.shadowsNeedUpdate = true;
+            }
+        }
+
+        // Update all flowers independently
+        for (let flower of this.flowers) {
+            if (!flower.isFullyGrown()) {
+                flower.update(timestamp);
                 needsUpdate = true;
                 this.shadowsNeedUpdate = true;
             }

@@ -3,25 +3,100 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { weed, barnsley, maple, simpleDaisy, fern, smallFern, bush, sunflower } from './rules';
 
+/**
+ * Converts a float value (0-1) to a seasonal leaf color
+ * @param {number} value - Float between 0 and 1 
+ * @returns {number} - THREE.js color value
+ */
+export function convertNumberToLeafColor(value) {
+    // Clamp value between 0 and 1
+    value = Math.max(0, Math.min(1, value));
+    
+    // Define seasonal leaf colors
+    const colors = [
+        {r: 34/255, g: 139/255, b: 34/255},    // Forest green
+        {r: 107/255, g: 142/255, b: 35/255},    // Olive green
+        {r: 255/255, g: 140/255, b: 0/255},     // Orange
+        {r: 255/255, g: 215/255, b: 0/255},     // Golden yellow
+        {r: 139/255, g: 69/255, b: 19/255},     // Brown
+        {r: 178/255, g: 34/255, b: 34/255}      // Dark red
+    ];
+    
+    // Calculate which two colors to interpolate between
+    const numColors = colors.length;
+    const scaledValue = value * (numColors - 1);
+    const index1 = Math.floor(scaledValue);
+    const index2 = Math.min(index1 + 1, numColors - 1);
+    const remainder = scaledValue - index1;
+    
+    // Interpolate between the two colors
+    const r = colors[index1].r + (colors[index2].r - colors[index1].r) * remainder;
+    const g = colors[index1].g + (colors[index2].g - colors[index1].g) * remainder;
+    const b = colors[index1].b + (colors[index2].b - colors[index1].b) * remainder;
+    
+    // Convert to THREE.js color format (0xRRGGBB)
+    return (Math.round(r * 255) << 16) | (Math.round(g * 255) << 8) | Math.round(b * 255);
+}
+
+/**
+ * Converts a float value (0-1) to a branch color based on thickness
+ * @param {number} branchThickness - Float between 0 and 1 representing branch thickness
+ * @param {number} colorVariation - Float between 0 and 1 for color interpolation
+ * @returns {number} - THREE.js color value
+ */
+export function convertNumberToBranchColor(branchThickness, colorVariation = 0) {
+    // Clamp values between 0 and 1
+    branchThickness = Math.max(0, Math.min(1, branchThickness));
+    colorVariation = Math.max(0, Math.min(1, colorVariation));
+    
+    // Define branch colors
+    const greenBranch = {r: 34/255, g: 139/255, b: 34/255};    // Forest green
+    const brownBranch = {r: 139/255, g: 69/255, b: 19/255};    // Brown
+    const darkBrownBranch = {r: 69/255, g: 34/255, b: 9/255};  // Dark brown
+    
+    // Interpolate between green and brown based on colorVariation
+    const interpolatedGreen = {
+        r: greenBranch.r + (brownBranch.r - greenBranch.r) * colorVariation,
+        g: greenBranch.g + (brownBranch.g - greenBranch.g) * colorVariation,
+        b: greenBranch.b + (brownBranch.b - greenBranch.b) * colorVariation
+    };
+    
+    // Interpolate between brown and dark brown based on colorVariation
+    const interpolatedBrown = {
+        r: brownBranch.r + (darkBrownBranch.r - brownBranch.r) * colorVariation,
+        g: brownBranch.g + (darkBrownBranch.g - brownBranch.g) * colorVariation,
+        b: brownBranch.b + (darkBrownBranch.b - brownBranch.b) * colorVariation
+    };
+    
+    // Use interpolated colors based on branch thickness
+    const color = branchThickness < 0.8 ? interpolatedGreen : interpolatedBrown;
+    
+    // Convert to THREE.js color format (0xRRGGBB)
+    return (Math.round(color.r * 255) << 16) | (Math.round(color.g * 255) << 8) | Math.round(color.b * 255);
+}
+
+
+
 export class LSystemPlant {
     // Static shared geometry
     static sharedLeafGeometry = null;
 
-    constructor(scene, position = new THREE.Vector3(0, -30, 0), orientation = 0, sharedMaterials = null) {
+    constructor(scene, position = new THREE.Vector3(0, -30, 0), orientation = 0, tree = maple) {
         this.scene = scene;
         this.orientation = orientation !== null ? orientation : Math.random() * Math.PI / 2;        // L-system configuration
         console.log(this.orientation)
-        this.axiom = maple.axiom;
-        this.rules = maple.rules;
-        this.angle = maple.angle;
-        this.generateLeaves = maple.generate.leaves;
-        this.generateFlowers = maple.generate.flowers; 
+        this.axiom = tree.axiom;
+        this.rules = tree.rules;
+        this.angle = tree.angle;
+        this.generateLeaves = tree.generate.leaves;
+        this.generateFlowers = tree.generate.flowers;
+        this.tree = tree;  // Store the tree configuration
 
         // Growth tracking
         this.currentSentence = this.axiom;
         this.nextSentence = "";
         this.iterations = 0;
-        this.maxIterations = 4;
+        this.maxIterations = tree.maxIterations;
         this.currentDepth = 0;
         this.processedChars = 0;
         this.totalProcessedChars = 0;
@@ -32,15 +107,16 @@ export class LSystemPlant {
         this.lastTimestamp = 0;
 
         // Visual properties
-        this.baseBranchLength = maple.branch.baseLength;
-        this.baseBranchRadius = maple.branch.baseRadius;
-        this.branchColor = new THREE.Color(maple.branch.color.red, maple.branch.color.green, maple.branch.color.blue);
+        this.baseBranchLength = tree.branch.baseLength;
+        this.baseBranchRadius = tree.branch.baseRadius;
+        this.branchColor = new THREE.Color(tree.branch.color.red, tree.branch.color.green, tree.branch.color.blue);
         this.leafColor = 0x228B22; // Forest green
 
         // Scaling factors
-        this.branchLengthFactor = maple.branch.lengthFactor; // Each branch level is 80% of parent's length
-        this.branchRadiusFactor = maple.branch.radiusFactor; // Each branch level is 70% of parent's radius
+        this.branchLengthFactor = tree.branch.lengthFactor; // Each branch level is 80% of parent's length
+        this.branchRadiusFactor = tree.branch.radiusFactor; // Each branch level is 70% of parent's radius
 
+        this.tree = tree;
 
         // Stored branches and growth state
         this.branches = [];
@@ -58,32 +134,26 @@ export class LSystemPlant {
 
         // Bezier curve control for future flower petals
         this.curvePoints = [];
-        // Use shared materials if provided
-        if (sharedMaterials) {
-            this.branchMaterial = sharedMaterials.branch;
-            this.leafMaterial = sharedMaterials.leaf;
-        } else {
-            // Create materials as before
-            this.branchMaterial = new THREE.MeshStandardMaterial({
-                color: this.branchColor,
-                roughness: 0.8,
-                metalness: 0.1
-            });
+        // Use materials as before
+        this.branchMaterial = new THREE.MeshStandardMaterial({
+            color: this.branchColor,
+            roughness: 0.8,
+            metalness: 0.1
+        });
 
-            this.leafMaterial = new THREE.MeshStandardMaterial({
-                color: this.leafColor,
-                side: THREE.DoubleSide,
-                roughness: 0.5,
-                metalness: 0.0
-            });
-        }
+        this.leafMaterial = new THREE.MeshStandardMaterial({
+            color: this.leafColor,
+            side: THREE.DoubleSide,
+            roughness: 0.5,
+            metalness: 0.0
+        });
 
         // Create this plant's unique leaf geometry
         const leafParams = {
             type: 'maple',
-            width: maple.leaf.width.min,
-            length: maple.leaf.length.min,
-            archStrength: maple.leaf.archStrength.min
+            width: tree.leaf.width.min,
+            length: tree.leaf.length.min,
+            archStrength: tree.leaf.archStrength.min
         };
         console.log(leafParams);
         this.leafGeometry = this.createLeafGeometry(leafParams.type, leafParams.width, leafParams.length, leafParams.archStrength);
@@ -98,40 +168,51 @@ export class LSystemPlant {
         this.leafInstancedMesh.count = 0; // Start with 0 instances
         this.scene.add(this.leafInstancedMesh);
         // Create petal geometry (shared for all petals in this plant)
-        const petalGeometry = this.createPetalGeometry();
+        if (this.generateFlowers) {
+            const petalGeometry = this.createPetalGeometry();
+            // Use average center radius from config for sphere size
+            const centerRadius = (tree.flower.centerRadius.min + tree.flower.centerRadius.max) / 2;
+            const centerGeometry = new THREE.SphereGeometry(centerRadius, 8, 8);
+            console.log(tree.flower.petalColor)
+            // Create instanced meshes for this plant's flowers
+            this.petalInstancedMesh = new THREE.InstancedMesh(
+                petalGeometry,
+                new THREE.MeshStandardMaterial({
+                    color: new THREE.Color(
+                        tree.flower.petalColor.red,
+                        tree.flower.petalColor.green, 
+                        tree.flower.petalColor.blue
+                    ),
+                    side: THREE.DoubleSide,
+                    roughness: 0.5,
+                    metalness: 0.1
+                }),
+                tree.flower.petalCount.max * 20 // Max petals = max petals per flower * max flowers
+            );
+            this.petalInstancedMesh.count = 0;
+            this.scene.add(this.petalInstancedMesh);
 
-        // Create flower center geometry (shared for all flower centers)
-        const centerGeometry = new THREE.SphereGeometry(1.0, 8, 8); // Unit size
+            this.flowerCenterInstancedMesh = new THREE.InstancedMesh(
+                centerGeometry,
+                new THREE.MeshStandardMaterial({
+                    color: new THREE.Color(
+                        tree.flower.centerColor.red,
+                        tree.flower.centerColor.green,
+                        tree.flower.centerColor.blue
+                    ),
+                    roughness: 0.7,
+                    metalness: 0.2
+                }),
+                20 // Maximum flower centers per plant
+            );
+            this.flowerCenterInstancedMesh.count = 0;
+            this.scene.add(this.flowerCenterInstancedMesh);
 
-        // Create instanced meshes for this plant's flowers
-        this.petalInstancedMesh = new THREE.InstancedMesh(
-            petalGeometry,
-            new THREE.MeshStandardMaterial({
-                color: 0xFF4081, // Pink default
-                side: THREE.DoubleSide,
-                roughness: 0.5,
-                metalness: 0.1
-            }),
-            100 // Maximum petals per plant
-        );
-        this.petalInstancedMesh.count = 0;
-        this.scene.add(this.petalInstancedMesh);
+            // Initialize counts
+            this.petalCount = 0;
+            this.flowerCount = 0;
+        }
 
-        this.flowerCenterInstancedMesh = new THREE.InstancedMesh(
-            centerGeometry,
-            new THREE.MeshStandardMaterial({
-                color: 0xFFF9C4, // Light yellow
-                roughness: 0.7,
-                metalness: 0.2
-            }),
-            20 // Maximum flower centers per plant
-        );
-        this.flowerCenterInstancedMesh.count = 0;
-        this.scene.add(this.flowerCenterInstancedMesh);
-
-        // Initialize counts
-        this.petalCount = 0;
-        this.flowerCount = 0;
 
     }
 
@@ -158,7 +239,7 @@ export class LSystemPlant {
         const halfWidth = width * 0.5;
         const halfLength = length * 0.5;
         console.log(type, width, length, archStrength)
-        switch(type) {
+        switch (type) {
             case 'maple':
                 shape.moveTo(0, -halfLength);
                 shape.lineTo(0, halfLength);
@@ -203,7 +284,7 @@ export class LSystemPlant {
                 shape.moveTo(0, -halfLength);
                 for (let i = 0; i < segments; i++) {
                     const y = -halfLength + (i + 0.5) * segmentLength;
-                    const x = halfWidth * (1 - Math.abs(i - segments/2) / (segments/2));
+                    const x = halfWidth * (1 - Math.abs(i - segments / 2) / (segments / 2));
                     if (i < segments - 1) {
                         shape.bezierCurveTo(
                             x + serrationSize, y,
@@ -214,7 +295,7 @@ export class LSystemPlant {
                 }
                 for (let i = segments - 1; i >= 0; i--) {
                     const y = -halfLength + (i + 0.5) * segmentLength;
-                    const x = -halfWidth * (1 - Math.abs(i - segments/2) / (segments/2));
+                    const x = -halfWidth * (1 - Math.abs(i - segments / 2) / (segments / 2));
                     if (i > 0) {
                         shape.bezierCurveTo(
                             x - serrationSize, y,
@@ -314,7 +395,6 @@ export class LSystemPlant {
                     }
                     break;
 
-
                 case 'f':
                     // Move without drawing
                     const moveLength = this.baseBranchLength * Math.pow(this.branchLengthFactor, this.currentDepth);
@@ -366,7 +446,8 @@ export class LSystemPlant {
                     });
                     this.currentDepth++;
                     break;
-                case ']': // Pop state, decrease depth, and possibly add a leaf
+
+                case ']': // Pop state, decrease depth, and possibly add a leaf or flower
                     if (this.branchStack.length > 0) {
                         // A branch is terminal if the next character is not a movement or branch command
                         const nextChar = this.currentSentence[this.processedChars + 1];
@@ -375,15 +456,21 @@ export class LSystemPlant {
                             !['[', 'F', 'f'].includes(nextChar)
                         );
 
-                        if (isTerminal && this.generateLeaves && this.currentDepth > 1) {
-                            const leafSize = Math.pow(0.9, this.currentDepth);
-                            const leavesPerNode = 3;
-                            for (let i = 0; i < leavesPerNode; i++) {
-                                this.createLeaf(this.position.clone(), this.direction.clone(), leafSize, {
-                                    distribution: 'systematic',
-                                    index: i,
-                                    total: leavesPerNode
-                                });
+                        if (isTerminal) {
+                            if (this.generateLeaves  && this.currentDepth > 1) {
+                                const leafSize = Math.pow(0.9, this.currentDepth);
+                                const leavesPerNode = 3;
+                                for (let i = 0; i < leavesPerNode; i++) {
+                                    this.createLeaf(this.position.clone(), this.direction.clone(), leafSize, {
+                                        distribution: 'systematic',
+                                        index: i,
+                                        total: leavesPerNode
+                                    });
+                                }
+                            }
+                            if (this.generateFlowers) {
+                                const flowerSize = Math.pow(0.8, this.currentDepth);
+                                this.createFlower(this.position.clone(), this.direction.clone(), flowerSize);
                             }
                         }
 
@@ -394,6 +481,13 @@ export class LSystemPlant {
                         this.left = state.left;
                         this.up = state.up;
                         this.currentDepth = state.depth;
+                    }
+                    break;
+
+                case 'Z': // Create flower at this position
+                    if (this.generateFlowers) {
+                        const flowerSize = Math.pow(0.8, this.currentDepth);
+                        this.createFlower(this.position.clone(), this.direction.clone(), flowerSize);
                     }
                     break;
             }
@@ -448,32 +542,50 @@ export class LSystemPlant {
     }
 
     createPetalGeometry() {
-        // Create a shape for the petal
+        // Create a shape for the petal using config parameters
         const petalShape = new THREE.Shape();
-        const size = 1.0; // Unit size
-        const petalWidth = size * 0.3;
-
+        const size = 1.0; // Unit size - will be scaled later
+        
+        // Use config parameters for petal dimensions
+        const petalWidth = this.tree.flower.petalWidth.min + 
+            (Math.random() * (this.tree.flower.petalWidth.max - this.tree.flower.petalWidth.min));
+        
+        // Get curvature and taper values from config
+        const curvature = this.tree.flower.petalCurvature?.min + 
+            (Math.random() * ((this.tree.flower.petalCurvature?.max || 0.3) - (this.tree.flower.petalCurvature?.min || 0.1)));
+        
+        const taper = this.tree.flower.petalTaper?.min + 
+            (Math.random() * ((this.tree.flower.petalTaper?.max || 0.8) - (this.tree.flower.petalTaper?.min || 0.6)));
+    
+        // Create more realistic petal shape with tapering
+        const baseWidth = petalWidth;
+        const tipWidth = baseWidth * taper; // Narrower at tip
+        
         petalShape.moveTo(0, 0);
+        
+        // Right edge - curves outward then tapers in
         petalShape.bezierCurveTo(
-            size * 0.3, petalWidth,
-            size * 0.7, petalWidth,
-            size, 0
+            size * 0.2, baseWidth * (1 + curvature),     // Control point 1 - outward curve
+            size * 0.8, tipWidth * (1 + curvature * 0.5), // Control point 2 - less curve near tip
+            size, 0                                        // End point at tip
         );
+        
+        // Left edge - mirror of right edge
         petalShape.bezierCurveTo(
-            size * 0.7, -petalWidth,
-            size * 0.3, -petalWidth,
-            0, 0
+            size * 0.8, -tipWidth * (1 + curvature * 0.5), // Control point 1
+            size * 0.2, -baseWidth * (1 + curvature),       // Control point 2
+            0, 0                                             // Back to start
         );
-
+    
         // Create geometry from the shape
         const petalGeometry = new THREE.ShapeGeometry(petalShape, 8);
-
+    
         // Center the geometry at origin for proper transformations
         petalGeometry.computeBoundingBox();
         const center = new THREE.Vector3();
         petalGeometry.boundingBox.getCenter(center);
         petalGeometry.translate(-center.x, -center.y, -center.z);
-
+    
         return petalGeometry;
     }
 
@@ -560,8 +672,12 @@ export class LSystemPlant {
         this.flowerCenterInstancedMesh.count = this.flowerCount;
         this.flowerCenterInstancedMesh.instanceMatrix.needsUpdate = true;
 
-        // Choose a color for petals
-        const petalColor = new THREE.Color(Math.random() > 0.5 ? 0xFF4081 : 0x9C27B0);
+        // Use the configured petal color from the tree configuration
+        const petalColor = new THREE.Color(
+            this.tree.flower.petalColor.red,
+            this.tree.flower.petalColor.green,
+            this.tree.flower.petalColor.blue
+        );
 
         // Create petals around the center
         const petalCount = 5 + Math.floor(Math.random() * 3); // 5-7 petals

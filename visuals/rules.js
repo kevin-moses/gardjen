@@ -37,6 +37,7 @@ export const maple = {
         "F": "FF"
     },
     angle: 32,
+    maxIterations: 5,
     // Branch properties
     branch: {
         color: {
@@ -71,19 +72,86 @@ export const maple = {
     }
 }
 export const simpleDaisy = {
-  axiom: "X",
-  rules: {
-    "X": "F[-X][+X]FZ",
-    "F": "FF",
-    "Z": "Z"  // Flower symbol
-  },
-  angle: 25,
-  branchColor: {
-    red: 109/255,
-    green: 128/255,
-    blue: 72/255
+    // L-system rules
+    axiom: "X",
+    rules: {
+        "X": "F[+X][-X]FZ",  // Create branching structure with flowers
+        "F": "FF",           // Make stems longer
+        "Z": "Z"             // Keep flowers at branch ends
+    },
+    angle: 25,
+    maxIterations: 3,
+    // Branch properties
+    branch: {
+        color: {
+            red: 109/255,    // Green stem color
+            green: 128/255,
+            blue: 72/255
+        },
+        baseLength: 0.4,     // Shorter stems for daisies
+        baseRadius: 0.08,    // Thin delicate stems
+        lengthFactor: 0.85,  // Moderate tapering
+        radiusFactor: 0.8    // Gentle radius reduction
+    },
+    
+    // Leaf properties (even though not generated, keeping for consistency)
+    leaf: {
+        length: {
+            min: 0.8,
+            max: 1.2
+        },
+        width: {
+            min: 0.6,
+            max: 1.0
+        },
+        archStrength: {
+            min: 0.2,
+            max: 0.5
+        }
+    },
+    
+    // Flower properties (new section for flowers)
+    flower: {
+        petalCount: {
+            min: 13,         // More petals for classic daisy look
+            max: 21
+        },
+        petalLength: {
+            min: 1.8,        // Longer, more prominent petals
+            max: 2.4
+        },
+        petalWidth: {
+            min: 0.15,       // Much narrower petals
+            max: 0.25
+        },
+        centerRadius: {
+            min: 0.3,        // Slightly larger center
+            max: 0.5
+        },
+        petalColor: {
+            red: 0.98,       // Pure white petals
+            green: 0.98,
+            blue: 0.98
+        },
+        centerColor: {
+            red: 1.0,        // Bright yellow center
+            green: 0.85,
+            blue: 0.1
+        },
+        petalCurvature: {    // New property for petal shape
+            min: 0.1,
+            max: 0.3
+        },
+        petalTaper: {        // New property for petal tapering
+            min: 0.6,        // Petals get narrower toward tip
+            max: 0.8
+        }
+    },
+    generate: {
+        flowers: true,
+        leaves: false
+    }
 }
-};
 
 export const smallFern = {
     // L-system rules
