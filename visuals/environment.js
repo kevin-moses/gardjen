@@ -3,14 +3,15 @@ import * as THREE from 'three';
 
 // Create a function to calculate height at any x,y position
 export const calculateHeight = (x, y) => {
-  return Math.sin(x/100) * 10 + Math.cos(y/100) * 10;
+  return Math.sin(x/100) * 9 + Math.cos(y/100) * 9;
 };
 
 export function createGrassFloor(scene) {
   // Create a heightfield geometry instead of a plane
   // More segments = more detailed hills (adjust for performance)
-  const width = 2000, depth = 2000;
-  const widthSegments = 2000, depthSegments = 2000;
+  const multiplier = 750;
+  const width = multiplier, depth = multiplier;
+  const widthSegments = multiplier, depthSegments = multiplier;
   const geometry = new THREE.PlaneGeometry(width, depth, widthSegments, depthSegments);
   
   // Create rolling hills by modifying vertex positions

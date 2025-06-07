@@ -1,90 +1,16 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { weed, barnsley, maple, simpleDaisy, fern, smallFern, bush, sunflower } from './rules';
-
-/**
- * Converts a float value (0-1) to a seasonal leaf color
- * @param {number} value - Float between 0 and 1 
- * @returns {number} - THREE.js color value
- */
-export function convertNumberToLeafColor(value) {
-    // Clamp value between 0 and 1
-    value = Math.max(0, Math.min(1, value));
-    
-    // Define seasonal leaf colors
-    const colors = [
-        {r: 34/255, g: 139/255, b: 34/255},    // Forest green
-        {r: 107/255, g: 142/255, b: 35/255},    // Olive green
-        {r: 255/255, g: 140/255, b: 0/255},     // Orange
-        {r: 255/255, g: 215/255, b: 0/255},     // Golden yellow
-        {r: 139/255, g: 69/255, b: 19/255},     // Brown
-        {r: 178/255, g: 34/255, b: 34/255}      // Dark red
-    ];
-    
-    // Calculate which two colors to interpolate between
-    const numColors = colors.length;
-    const scaledValue = value * (numColors - 1);
-    const index1 = Math.floor(scaledValue);
-    const index2 = Math.min(index1 + 1, numColors - 1);
-    const remainder = scaledValue - index1;
-    
-    // Interpolate between the two colors
-    const r = colors[index1].r + (colors[index2].r - colors[index1].r) * remainder;
-    const g = colors[index1].g + (colors[index2].g - colors[index1].g) * remainder;
-    const b = colors[index1].b + (colors[index2].b - colors[index1].b) * remainder;
-    
-    // Convert to THREE.js color format (0xRRGGBB)
-    return (Math.round(r * 255) << 16) | (Math.round(g * 255) << 8) | Math.round(b * 255);
-}
-
-/**
- * Converts a float value (0-1) to a branch color based on thickness
- * @param {number} branchThickness - Float between 0 and 1 representing branch thickness
- * @param {number} colorVariation - Float between 0 and 1 for color interpolation
- * @returns {number} - THREE.js color value
- */
-export function convertNumberToBranchColor(branchThickness, colorVariation = 0) {
-    // Clamp values between 0 and 1
-    branchThickness = Math.max(0, Math.min(1, branchThickness));
-    colorVariation = Math.max(0, Math.min(1, colorVariation));
-    
-    // Define branch colors
-    const greenBranch = {r: 34/255, g: 139/255, b: 34/255};    // Forest green
-    const brownBranch = {r: 139/255, g: 69/255, b: 19/255};    // Brown
-    const darkBrownBranch = {r: 69/255, g: 34/255, b: 9/255};  // Dark brown
-    
-    // Interpolate between green and brown based on colorVariation
-    const interpolatedGreen = {
-        r: greenBranch.r + (brownBranch.r - greenBranch.r) * colorVariation,
-        g: greenBranch.g + (brownBranch.g - greenBranch.g) * colorVariation,
-        b: greenBranch.b + (brownBranch.b - greenBranch.b) * colorVariation
-    };
-    
-    // Interpolate between brown and dark brown based on colorVariation
-    const interpolatedBrown = {
-        r: brownBranch.r + (darkBrownBranch.r - brownBranch.r) * colorVariation,
-        g: brownBranch.g + (darkBrownBranch.g - brownBranch.g) * colorVariation,
-        b: brownBranch.b + (darkBrownBranch.b - brownBranch.b) * colorVariation
-    };
-    
-    // Use interpolated colors based on branch thickness
-    const color = branchThickness < 0.8 ? interpolatedGreen : interpolatedBrown;
-    
-    // Convert to THREE.js color format (0xRRGGBB)
-    return (Math.round(color.r * 255) << 16) | (Math.round(color.g * 255) << 8) | Math.round(color.b * 255);
-}
-
+import {maple } from './rules';
 
 
 export class LSystemPlant {
     // Static shared geometry
     static sharedLeafGeometry = null;
 
-    constructor(scene, position = new THREE.Vector3(0, -30, 0), orientation = 0, tree = maple) {
+    constructor(scene, position = new THREE.Vector3(0, -30, 0), orientation = 0, tree = maple, dynamicConfig={}) {
         this.scene = scene;
-        this.orientation = orientation !== null ? orientation : Math.random() * Math.PI / 2;        // L-system configuration
-        console.log(this.orientation)
+        this.orientation = orientation !== null ? orientation : Math.random() * Math.PI / 4;        // L-system configuration
         this.axiom = tree.axiom;
         this.rules = tree.rules;
         this.angle = tree.angle;
@@ -109,12 +35,13 @@ export class LSystemPlant {
         // Visual properties
         this.baseBranchLength = tree.branch.baseLength;
         this.baseBranchRadius = tree.branch.baseRadius;
-        this.branchColor = new THREE.Color(tree.branch.color.red, tree.branch.color.green, tree.branch.color.blue);
-        this.leafColor = 0x228B22; // Forest green
+        this.branchColor =  new THREE.Color(tree.branch.color.red, tree.branch.color.green, tree.branch.color.blue);
+        
+        this.leafColor = dynamicConfig.leafColor; 
 
         // Scaling factors
-        this.branchLengthFactor = tree.branch.lengthFactor; // Each branch level is 80% of parent's length
-        this.branchRadiusFactor = tree.branch.radiusFactor; // Each branch level is 70% of parent's radius
+        this.branchLengthFactor = tree.branch.lengthFactor; 
+        this.branchRadiusFactor = tree.branch.radiusFactor;
 
         this.tree = tree;
 
@@ -150,12 +77,11 @@ export class LSystemPlant {
 
         // Create this plant's unique leaf geometry
         const leafParams = {
-            type: 'maple',
-            width: tree.leaf.width.min,
-            length: tree.leaf.length.min,
-            archStrength: tree.leaf.archStrength.min
+            type: tree.leaf.type,
+            width: tree.leaf.width.max,
+            length: tree.leaf.length.max,
+            archStrength: tree.leaf.archStrength.max
         };
-        console.log(leafParams);
         this.leafGeometry = this.createLeafGeometry(leafParams.type, leafParams.width, leafParams.length, leafParams.archStrength);
         this.leafGeometry.computeVertexNormals();
 
@@ -173,7 +99,6 @@ export class LSystemPlant {
             // Use average center radius from config for sphere size
             const centerRadius = (tree.flower.centerRadius.min + tree.flower.centerRadius.max) / 2;
             const centerGeometry = new THREE.SphereGeometry(centerRadius, 8, 8);
-            console.log(tree.flower.petalColor)
             // Create instanced meshes for this plant's flowers
             this.petalInstancedMesh = new THREE.InstancedMesh(
                 petalGeometry,
@@ -221,8 +146,6 @@ export class LSystemPlant {
     applyBaseOrientation() {
         // Create rotation matrix for orientation around Y axis
         const rotationMatrix = new THREE.Matrix4().makeRotationY(this.orientation);
-        console.log(this.orientation)
-        console.log(rotationMatrix)
         // Apply rotation to direction vectors
         this.direction.applyMatrix4(rotationMatrix);
         this.left.applyMatrix4(rotationMatrix);
@@ -238,7 +161,6 @@ export class LSystemPlant {
         const shape = new THREE.Shape();
         const halfWidth = width * 0.5;
         const halfLength = length * 0.5;
-        console.log(type, width, length, archStrength)
         switch (type) {
             case 'maple':
                 shape.moveTo(0, -halfLength);
@@ -361,7 +283,7 @@ export class LSystemPlant {
         this.currentSentence = this.nextSentence;
         this.iterations++;
         this.processedChars = 0;
-        console.log(`Generated iteration ${this.iterations}: Length=${this.currentSentence.length}`);
+        // console.log(`Generated iteration ${this.iterations}: Length=${this.currentSentence.length}`);
 
         return true;
     }
@@ -449,31 +371,28 @@ export class LSystemPlant {
 
                 case ']': // Pop state, decrease depth, and possibly add a leaf or flower
                     if (this.branchStack.length > 0) {
-                        // A branch is terminal if the next character is not a movement or branch command
+                        // Place leaves at every branch end (optionally, only if depth > 1)
+                        if (this.generateLeaves /* && this.currentDepth > 1 */) {
+                            const leafSize = Math.pow(0.9, this.currentDepth);
+                            const leavesPerNode = 3;
+                            for (let i = 0; i < leavesPerNode; i++) {
+                                this.createLeaf(this.position.clone(), this.direction.clone(), leafSize, {
+                                    distribution: 'systematic',
+                                    index: i,
+                                    total: leavesPerNode
+                                });
+                            }
+                        }
+                        // Optionally, keep isTerminal for flowers only
                         const nextChar = this.currentSentence[this.processedChars + 1];
                         const isTerminal = (
                             this.processedChars + 1 >= this.currentSentence.length ||
                             !['[', 'F', 'f'].includes(nextChar)
                         );
-
-                        if (isTerminal) {
-                            if (this.generateLeaves  && this.currentDepth > 1) {
-                                const leafSize = Math.pow(0.9, this.currentDepth);
-                                const leavesPerNode = 3;
-                                for (let i = 0; i < leavesPerNode; i++) {
-                                    this.createLeaf(this.position.clone(), this.direction.clone(), leafSize, {
-                                        distribution: 'systematic',
-                                        index: i,
-                                        total: leavesPerNode
-                                    });
-                                }
-                            }
-                            if (this.generateFlowers) {
-                                const flowerSize = Math.pow(0.8, this.currentDepth);
-                                this.createFlower(this.position.clone(), this.direction.clone(), flowerSize);
-                            }
+                        if (isTerminal && this.generateFlowers) {
+                            const flowerSize = Math.pow(0.8, this.currentDepth);
+                            this.createFlower(this.position.clone(), this.direction.clone(), flowerSize);
                         }
-
                         // Restore state
                         const state = this.branchStack.pop();
                         this.position = state.position;

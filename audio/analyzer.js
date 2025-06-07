@@ -49,7 +49,6 @@ export class AudioAnalyzer {
                 featureExtractors: [
                     'rms',
                     'energy',
-                    // 'spectralFlux',  // Temporarily comment out to diagnose
                     'spectralCentroid',
                     'zcr',
                     'spectralRolloff',

@@ -53,8 +53,8 @@ export function floatToColor(value) {
 }
 
 export class LSystemFlower extends LSystemPlant {
-    constructor(scene, position, orientation, tree) {
-        super(scene, position, orientation, simpleDaisy);
+    constructor(scene, position, orientation, staticConfig, dynamicConfig) {
+        super(scene, position, orientation, staticConfig, dynamicConfig);
     }
 
 }

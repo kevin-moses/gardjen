@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Audio Analyzer with Meyda</title>
+  <title>gardjen</title>
   <style>
     body {
       margin: 0;
@@ -92,35 +92,6 @@
     </div>
   </div>
   
-  <script type="importmap">
-    {
-      "imports": {
-        "three": "https://cdnjs.cloudflare.com/ajax/libs/three.js/0.160.0/three.module.min.js",
-        "meyda": "https://cdnjs.cloudflare.com/ajax/libs/meyda/5.6.2/meyda.min.js"
-      }
-    }
-  </script>
-  <script type="module" src="main.js"></script>
-  
-  <script>
-    // Add event listeners for control buttons
-    document.getElementById('start-btn').addEventListener('click', () => {
-      if (window.appDebug) {
-        const analyzer = window.appDebug.getAnalyzer();
-        if (analyzer) analyzer.start();
-        window.appDebug.start();
-        document.getElementById('status').textContent = 'Audio analyzer running';
-      }
-    });
-    
-    document.getElementById('stop-btn').addEventListener('click', () => {
-      if (window.appDebug) {
-        const analyzer = window.appDebug.getAnalyzer();
-        if (analyzer) analyzer.stop();
-        window.appDebug.stop();
-        document.getElementById('status').textContent = 'Audio analyzer stopped';
-      }
-    });
-  </script>
+
 </body>
 </html>

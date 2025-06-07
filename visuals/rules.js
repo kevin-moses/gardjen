@@ -1,14 +1,44 @@
 export const barnsley = {
+    // L-system rules
     axiom: "-X",
     rules: {
         "F": "FF",
-        "X": "F+[[X]-X]-F[-FX]+X)",
+        "X": "F+[[X]-X]-F[-FX]+X"
     },
     angle: 25,
-    branchColor: {
-        red: 59/255,
-        green: 45/255,
-        blue: 34/255
+    maxIterations: 4,
+    // Branch properties
+    branch: {
+        type: 'oval',
+        color: {
+            red: 59/255,     // Dark brown stem
+            green: 45/255,
+            blue: 34/255
+        },
+        baseLength: 0.2,     // Shorter segments for delicate fern structure
+        baseRadius: 0.05,    // Very thin stems
+        lengthFactor: 0.85,  // Gradual tapering
+        radiusFactor: 0.9    // Minimal radius reduction for fine branches
+    },
+    
+    // Leaf properties (fern fronds)
+    leaf: {
+        length: {
+            min: 0.4,        // Small delicate fronds
+            max: 0.8
+        },
+        width: {
+            min: 0.2,
+            max: 0.4
+        },
+        archStrength: {
+            min: 0.6,        // Strong arch for fern frond shape
+            max: 0.9
+        }
+    },
+    generate: {
+        flowers: false,
+        leaves: true
     }
 }
 
@@ -36,8 +66,8 @@ export const maple = {
         "R": "F[+AL][-AR]",
         "F": "FF"
     },
-    angle: 32,
-    maxIterations: 5,
+    angle: 25,
+    maxIterations: 4,
     // Branch properties
     branch: {
         color: {
@@ -52,6 +82,7 @@ export const maple = {
     },
     // Leaf properties
     leaf: {
+        type: 'maple',
         length: {
             min: 1.4,
             max: 2.5
@@ -96,6 +127,7 @@ export const simpleDaisy = {
     
     // Leaf properties (even though not generated, keeping for consistency)
     leaf: {
+        type: 'oval',
         length: {
             min: 0.8,
             max: 1.2
@@ -153,47 +185,6 @@ export const simpleDaisy = {
     }
 }
 
-export const smallFern = {
-    // L-system rules
-    axiom: "X",
-    rules: {
-        "F": "FF",
-        "X": "F-[[X]+X]+F[+FX]-X"
-    },
-    angle: 25,
-    // Branch properties
-    branch: {
-        color: {
-            red: 34/255,    // Dark forest green
-            green: 139/255,
-            blue: 34/255
-        },
-        baseLength: 0.4,
-        baseRadius: 0.15,
-        lengthFactor: 0.75, // Each branch level is 75% of parent's length
-        radiusFactor: 0.65  // Each branch level is 65% of parent's radius
-    },
-    // Leaf properties
-    leaf: {
-        length: {
-            min: 0.8,
-            max: 2.0
-        },
-        width: {
-            min: 0.3,
-            max: 1.0
-        },
-        archStrength: {
-            min: 0.3,
-            max: 1.5
-        }
-    },
-    // Generation flags
-    generate: {
-        flowers: false,
-        leaves: true
-    }
-}
 
 export const fern = {
     // L-system rules
@@ -268,4 +259,90 @@ export const sunflower = {
     maxLeafSize: 0.8,
     generateFlowers: true,
     generateLeaves: true,
+}
+
+export const fan = {
+    // L-system rules
+    axiom: "F",
+    rules: {
+         "F": "F[+F]F[-F][F]"        // Classic binary tree with central growth
+    },
+    angle: 28,                      // Natural branching angle
+    maxIterations: 4,               // Good depth for full tree
+    // Branch properties
+    branch: {
+        color: {
+            red: 101 / 255,         // Rich brown bark
+            green: 67 / 255,
+            blue: 33 / 255
+        },
+        baseLength: 0.4,            // Good trunk height
+        baseRadius: 0.2,            // Proportional trunk thickness
+        lengthFactor: 0.7,          // Natural tapering
+        radiusFactor: 0.75          // Smooth thickness transition
+    },
+    
+    leaf: {
+        type: 'maple',
+        length: {
+            min: 1.0,               // Medium-sized leaves
+            max: 1.6
+        },
+        width: {
+            min: 0.8,               // Nice leaf proportions
+            max: 1.2
+        },
+        archStrength: {
+            min: 0.3,               // Natural leaf curve
+            max: 0.6
+        }
+    },
+    // Generation flags
+    generate: {
+        flowers: false,
+        leaves: true
+    }
+}
+
+export const conifer = {
+    // L-system rules
+    axiom: "F",
+    rules: {
+         "F": "F[--F][F][++F]F"      // Conifer branching: downward, straight, upward, continue
+    },
+    angle: 35,                      // Wider angle for drooping effect
+    maxIterations: 5,               // More iterations for dense foliage
+    // Branch properties
+    branch: {
+        color: {
+            red: 89 / 255,          // Darker, reddish-brown bark
+            green: 54 / 255,
+            blue: 31 / 255
+        },
+        baseLength: 0.6,            // Taller trunk for conifer shape
+        baseRadius: 0.15,           // Slender trunk
+        lengthFactor: 0.85,         // Gentle tapering for layered look
+        radiusFactor: 0.85          // Gradual thickness reduction
+    },
+    
+    leaf: {
+        type: 'oval',
+        length: {
+            min: 1.3,               // Small needle-like leaves
+            max: 1.6
+        },
+        width: {
+            min: 0.1,               // Very narrow needles
+            max: 0.2
+        },
+        archStrength: {
+            min: 0.1,               // Slight droop for needles
+            max: 0.25
+        }
+    },
+    // Generation flags
+    generate: {
+        flowers: false,
+        leaves: true
+    }
 }

@@ -6,10 +6,15 @@ import { LSystemFlower } from "./flower";
 import { createGrassFloor, calculateHeight } from "./environment";
 import { sunsetTexture } from "../textures/colors";
 import { floatToColor } from "./flower";
-import { maple, weed, simpleDaisy } from "./rules";
+import { fern, fan, conifer, simpleDaisy } from "./rules";
+import { AVConverter } from './avconverter';
 
 export class Renderer {
     constructor() {
+        // Dev mode state
+        this.devMode = false;
+        this.devStats = null;
+
         // Three.js setup
         this.renderer = new THREE.WebGLRenderer({
             antialias: true,
@@ -28,6 +33,8 @@ export class Renderer {
         this.scene = new THREE.Scene();
         this.scene.background = sunsetTexture;
 
+        this.avconverter = new AVConverter();
+
         // Lock the camera in place: do not allow user to move or rotate
         this.controls = new OrbitControls(this.camera, this.renderer.domElement);
         this.controls.enableZoom = true;
@@ -40,7 +47,7 @@ export class Renderer {
         this.scene.add(ambientLight);
         // Add directional light for shadows and definition
         const dirLight = new THREE.DirectionalLight(0xffffff, 1.5); // Increased intensity to 1.5
-        dirLight.position.set(150, 100, 10); // Positioned to the right and above camera
+        dirLight.position.set(10, 29, 133); // Match camera's initial position
         this.scene.add(dirLight);
         this.renderer.setClearColor(0x000000);
         createGrassFloor(this.scene); // Add grass floor        
@@ -64,6 +71,7 @@ export class Renderer {
     }
 
     init() {
+        this.avconverter.init();
         this.createNewPlant();
         this.createNewFlower();
         this.animate();
@@ -71,9 +79,16 @@ export class Renderer {
     }
 
     createNewPlant() {
+        if (!this.avconverter.hasAudio()) {
+            return;
+        }
         // Get camera's look direction
         const cameraDirection = new THREE.Vector3();
         this.camera.getWorldDirection(cameraDirection);
+
+        const params = this.avconverter.generateParameters(conifer);
+        console.log('params:')
+        console.log(params)
         
         // Calculate the camera's field of view in radians
         const fov = THREE.MathUtils.degToRad(this.camera.fov);
@@ -114,8 +129,7 @@ export class Renderer {
         // Calculate angle between camera direction and positive Z axis
         
         // Create plant with calculated position and orientation
-        console.log("maple", maple);
-        const plant = new LSystemPlant(this.scene, plantPosition, null, maple);
+        const plant = new LSystemPlant(this.scene, plantPosition, null, conifer, params);
         this.plants.push(plant);
         
         console.log(`New plant created at ${plantPosition.x}, ${plantPosition.y}, ${plantPosition.z}`);
@@ -125,6 +139,11 @@ export class Renderer {
         // Get camera's look direction
         const cameraDirection = new THREE.Vector3();
         this.camera.getWorldDirection(cameraDirection);
+
+        const params = this.avconverter.generateParameters(conifer);
+        console.log('flowerparams:')
+        console.log(params)
+        
         
         // Calculate the camera's field of view in radians
         const fov = THREE.MathUtils.degToRad(this.camera.fov);
@@ -163,9 +182,51 @@ export class Renderer {
         cameraDirection.normalize();
         
         // Create flower with calculated position and orientation
-        const flower = new LSystemFlower(this.scene, flowerPosition, null, simpleDaisy);
+        const flower = new LSystemFlower(this.scene, flowerPosition, null, simpleDaisy, params);
         this.flowers.push(flower);
         console.log("new flower created at ", flowerPosition.x, flowerPosition.y, flowerPosition.z);
+    }
+
+    setDevMode(enabled) {
+        this.devMode = enabled;
+        
+        if (enabled && !this.devStats) {
+            // Add stats display for dev mode
+            const statsContainer = document.createElement('div');
+            statsContainer.style.position = 'fixed';
+            statsContainer.style.top = '60px';  // Below dev mode button
+            statsContainer.style.right = '10px';
+            statsContainer.style.zIndex = '1000';
+            statsContainer.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+            statsContainer.style.padding = '10px';
+            statsContainer.style.borderRadius = '4px';
+            statsContainer.style.color = '#fff';
+            statsContainer.style.fontFamily = 'monospace';
+            this.devStats = statsContainer;
+            document.body.appendChild(statsContainer);
+        } else if (!enabled && this.devStats) {
+            // Remove stats display when dev mode is disabled
+            this.devStats.remove();
+            this.devStats = null;
+        }
+    }
+
+    updateDevStats() {
+        if (this.devMode && this.devStats) {
+            const stats = {
+                'FPS': Math.round(1000 / (performance.now() - this.lastFrameTime)),
+                'Draw Calls': this.renderer.info.render.calls,
+                'Triangles': this.renderer.info.render.triangles,
+                'Active Plants': this.plants ? this.plants.length : 0,
+                'Active Flowers': this.flowers ? this.flowers.length : 0
+            };
+            
+            this.devStats.innerHTML = Object.entries(stats)
+                .map(([key, value]) => `${key}: ${value}`)
+                .join('<br>');
+            
+            this.lastFrameTime = performance.now();
+        }
     }
 
     animate(timestamp) {
@@ -216,8 +277,9 @@ export class Renderer {
             }
         }
 
-        if (needsUpdate) {
+        if (needsUpdate || this.devMode) {  // Always render in dev mode
             this.renderer.render(this.scene, this.camera);
+            this.updateDevStats();
         }
 
         requestAnimationFrame(this.animate);
