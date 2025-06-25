@@ -5,8 +5,7 @@ import { LSystemPlant } from "./tree";
 import { LSystemFlower } from "./flower";
 import { createGrassFloor, calculateHeight } from "./environment";
 import { sunsetTexture } from "../textures/colors";
-import { floatToColor } from "./flower";
-import { fern, fan, conifer, simpleDaisy } from "./rules";
+import { fern, fan, conifer, simpleDaisy, bush } from "./rules";
 import { AVConverter } from './avconverter';
 
 export class Renderer {
@@ -31,9 +30,9 @@ export class Renderer {
         this.shadowsNeedUpdate = true;
 
         this.scene = new THREE.Scene();
-        this.scene.background = sunsetTexture;
+        this.scene.background = new THREE.Color(0x000000);
 
-        this.avconverter = new AVConverter();
+        this.avconverter = new AVConverter(this.devMode);
 
         // Lock the camera in place: do not allow user to move or rotate
         this.controls = new OrbitControls(this.camera, this.renderer.domElement);
@@ -70,8 +69,22 @@ export class Renderer {
         this.animate = this.animate.bind(this);
     }
 
-    init() {
-        this.avconverter.init();
+    async init() {
+        await this.avconverter.init();
+        // Wait for nonzero audio or max 2 seconds
+        const maxWait = 2000; // ms
+        const pollInterval = 100; // ms
+        let waited = 0;
+        let audioDetected = false;
+        while (waited < maxWait) {
+            if (this.avconverter.hasAudio()) {
+                audioDetected = true;
+                break;
+            }
+            await new Promise(res => setTimeout(res, pollInterval));
+            waited += pollInterval;
+        }
+        // Proceed regardless after maxWait
         this.createNewPlant();
         this.createNewFlower();
         this.animate();
@@ -86,10 +99,8 @@ export class Renderer {
         const cameraDirection = new THREE.Vector3();
         this.camera.getWorldDirection(cameraDirection);
 
-        const params = this.avconverter.generateParameters(conifer);
-        console.log('params:')
-        console.log(params)
-        
+        const params = this.avconverter.generateParameters(fern);
+
         // Calculate the camera's field of view in radians
         const fov = THREE.MathUtils.degToRad(this.camera.fov);
         const aspect = this.camera.aspect;
@@ -129,7 +140,7 @@ export class Renderer {
         // Calculate angle between camera direction and positive Z axis
         
         // Create plant with calculated position and orientation
-        const plant = new LSystemPlant(this.scene, plantPosition, null, conifer, params);
+        const plant = new LSystemPlant(this.scene, plantPosition, null, fern, params);
         this.plants.push(plant);
         
         console.log(`New plant created at ${plantPosition.x}, ${plantPosition.y}, ${plantPosition.z}`);
@@ -140,7 +151,7 @@ export class Renderer {
         const cameraDirection = new THREE.Vector3();
         this.camera.getWorldDirection(cameraDirection);
 
-        const params = this.avconverter.generateParameters(conifer);
+        const params = this.avconverter.generateParameters(simpleDaisy);
         console.log('flowerparams:')
         console.log(params)
         

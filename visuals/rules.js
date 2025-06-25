@@ -193,7 +193,7 @@ export const fern = {
         "F": "FF-[-F+F+F]+[+F-F-F]"
     },
     angle: 23,
-
+    maxIterations: 3,
     // Branch properties
     branch: {
         color: {
@@ -236,11 +236,40 @@ export const bush = {
         "X": "F[+X][-X]FX",
         "F": "FF"
     },
-    angle: 30,
-    branchColor: {
-        red: 132/255,
-        green: 108/255,
-        blue: 100/255
+    angle: 30, // Bushy, rounded branching
+    maxIterations: 4, // More iterations for dense, compact bush
+    // Branch properties
+    branch: {
+        color: {
+            red: 132/255, // Muted brown/greenish bark
+            green: 108/255,
+            blue: 100/255
+        },
+        baseLength: 0.35, // Shorter branches for compactness
+        baseRadius: 0.18, // Thicker base for bush density
+        lengthFactor: 0.65, // Rapidly shrinking branches for roundness
+        radiusFactor: 0.7   // Thinner as it branches
+    },
+    // Leaf properties
+    leaf: {
+        type: 'oval', // Broad, bushy leaves
+        length: {
+            min: 0.4,
+            max: 0.8
+        },
+        width: {
+            min: 0.2,
+            max: 0.5
+        },
+        archStrength: {
+            min: 0.2,
+            max: 0.5
+        }
+    },
+    // Generation flags
+    generate: {
+        flowers: false,
+        leaves: true
     }
 }
 
@@ -311,7 +340,7 @@ export const conifer = {
          "F": "F[--F][F][++F]F"      // Conifer branching: downward, straight, upward, continue
     },
     angle: 35,                      // Wider angle for drooping effect
-    maxIterations: 5,               // More iterations for dense foliage
+    maxIterations: 2,               // More iterations for dense foliage
     // Branch properties
     branch: {
         color: {

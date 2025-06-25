@@ -9,8 +9,11 @@ export class LSystemPlant {
     static sharedLeafGeometry = null;
 
     constructor(scene, position = new THREE.Vector3(0, -30, 0), orientation = 0, tree = maple, dynamicConfig={}) {
+        console.log('TREE: ');
+        console.log(tree);
         this.scene = scene;
         this.orientation = orientation !== null ? orientation : Math.random() * Math.PI / 4;        // L-system configuration
+        this.dynamicConfig = dynamicConfig;
         this.axiom = tree.axiom;
         this.rules = tree.rules;
         this.angle = tree.angle;
@@ -38,6 +41,16 @@ export class LSystemPlant {
         this.branchColor =  new THREE.Color(tree.branch.color.red, tree.branch.color.green, tree.branch.color.blue);
         
         this.leafColor = dynamicConfig.leafColor; 
+
+        // Apply scale factor if leaves are generated and scale is provided
+        if (this.generateLeaves && dynamicConfig.scale) {
+            const scaleFactor = dynamicConfig.scale;
+            console.log('scaleFactor: ' + scaleFactor);
+            this.baseBranchLength *= scaleFactor;
+            this.baseBranchRadius *= scaleFactor;
+            console.log('baseBranchLength: ' + this.baseBranchLength);
+            console.log('baseBranchRadius: ' + this.baseBranchRadius);
+        }
 
         // Scaling factors
         this.branchLengthFactor = tree.branch.lengthFactor; 
@@ -78,10 +91,17 @@ export class LSystemPlant {
         // Create this plant's unique leaf geometry
         const leafParams = {
             type: tree.leaf.type,
-            width: tree.leaf.width.max,
-            length: tree.leaf.length.max,
-            archStrength: tree.leaf.archStrength.max
+            width: dynamicConfig.leaf.width,
+            length: dynamicConfig.leaf.length,
+            archStrength: dynamicConfig.leaf.archStrength
         };
+
+        // Apply scale factor to leaf dimensions if leaves are generated and scale is provided
+        if (this.generateLeaves && this.dynamicConfig.scale) {
+            leafParams.width *= Math.pow(this.dynamicConfig.scale, 0.3);
+            leafParams.length *= Math.pow(this.dynamicConfig.scale, 0.3);
+        }
+
         this.leafGeometry = this.createLeafGeometry(leafParams.type, leafParams.width, leafParams.length, leafParams.archStrength);
         this.leafGeometry.computeVertexNormals();
 
@@ -95,24 +115,22 @@ export class LSystemPlant {
         this.scene.add(this.leafInstancedMesh);
         // Create petal geometry (shared for all petals in this plant)
         if (this.generateFlowers) {
-            const petalGeometry = this.createPetalGeometry();
+            const petalGeometry = this.createPetalGeometry(dynamicConfig);
             // Use average center radius from config for sphere size
             const centerRadius = (tree.flower.centerRadius.min + tree.flower.centerRadius.max) / 2;
             const centerGeometry = new THREE.SphereGeometry(centerRadius, 8, 8);
             // Create instanced meshes for this plant's flowers
+            const petalColor = new THREE.Color(dynamicConfig.flowerPetalColor);
+            const petalMaterial = new THREE.MeshStandardMaterial({
+                color: petalColor,
+                side: THREE.DoubleSide,
+                roughness: 0.5,
+                metalness: 0.1
+            });
             this.petalInstancedMesh = new THREE.InstancedMesh(
                 petalGeometry,
-                new THREE.MeshStandardMaterial({
-                    color: new THREE.Color(
-                        tree.flower.petalColor.red,
-                        tree.flower.petalColor.green, 
-                        tree.flower.petalColor.blue
-                    ),
-                    side: THREE.DoubleSide,
-                    roughness: 0.5,
-                    metalness: 0.1
-                }),
-                tree.flower.petalCount.max * 20 // Max petals = max petals per flower * max flowers
+                petalMaterial,
+                dynamicConfig.petal.count * 20 // Max petals = max petals per flower * max flowers
             );
             this.petalInstancedMesh.count = 0;
             this.scene.add(this.petalInstancedMesh);
@@ -120,11 +138,7 @@ export class LSystemPlant {
             this.flowerCenterInstancedMesh = new THREE.InstancedMesh(
                 centerGeometry,
                 new THREE.MeshStandardMaterial({
-                    color: new THREE.Color(
-                        tree.flower.centerColor.red,
-                        tree.flower.centerColor.green,
-                        tree.flower.centerColor.blue
-                    ),
+                    color: new THREE.Color(dynamicConfig.flowerCenterColor),
                     roughness: 0.7,
                     metalness: 0.2
                 }),
@@ -373,7 +387,12 @@ export class LSystemPlant {
                     if (this.branchStack.length > 0) {
                         // Place leaves at every branch end (optionally, only if depth > 1)
                         if (this.generateLeaves /* && this.currentDepth > 1 */) {
-                            const leafSize = Math.pow(0.9, this.currentDepth);
+                            let leafSize = Math.pow(0.9, this.currentDepth);
+                            // Apply scale factor to leaf size if leaves are generated and scale is provided
+                            if (this.dynamicConfig.scale) {
+                                const scaleFactor = this.dynamicConfig.scale;
+                                leafSize *= scaleFactor;
+                            }
                             const leavesPerNode = 3;
                             for (let i = 0; i < leavesPerNode; i++) {
                                 this.createLeaf(this.position.clone(), this.direction.clone(), leafSize, {
@@ -460,18 +479,16 @@ export class LSystemPlant {
         return cylinder;
     }
 
-    createPetalGeometry() {
+    createPetalGeometry(dynamicConfig) {
         // Create a shape for the petal using config parameters
         const petalShape = new THREE.Shape();
         const size = 1.0; // Unit size - will be scaled later
         
         // Use config parameters for petal dimensions
-        const petalWidth = this.tree.flower.petalWidth.min + 
-            (Math.random() * (this.tree.flower.petalWidth.max - this.tree.flower.petalWidth.min));
+        const petalWidth = dynamicConfig.petal.width;
         
         // Get curvature and taper values from config
-        const curvature = this.tree.flower.petalCurvature?.min + 
-            (Math.random() * ((this.tree.flower.petalCurvature?.max || 0.3) - (this.tree.flower.petalCurvature?.min || 0.1)));
+        const curvature = dynamicConfig.petal.curvature;
         
         const taper = this.tree.flower.petalTaper?.min + 
             (Math.random() * ((this.tree.flower.petalTaper?.max || 0.8) - (this.tree.flower.petalTaper?.min || 0.6)));
@@ -591,24 +608,17 @@ export class LSystemPlant {
         this.flowerCenterInstancedMesh.count = this.flowerCount;
         this.flowerCenterInstancedMesh.instanceMatrix.needsUpdate = true;
 
-        // Use the configured petal color from the tree configuration
-        const petalColor = new THREE.Color(
-            this.tree.flower.petalColor.red,
-            this.tree.flower.petalColor.green,
-            this.tree.flower.petalColor.blue
-        );
-
         // Create petals around the center
         const petalCount = 5 + Math.floor(Math.random() * 3); // 5-7 petals
         for (let i = 0; i < petalCount; i++) {
             const angle = (i / petalCount) * Math.PI * 2;
-            this.createPetal(position, direction, size, angle, petalColor);
+            this.createPetal(position, direction, size, angle);
         }
 
         return centerIndex;
     }
 
-    createPetal(position, direction, size, angle, color) {
+    createPetal(position, direction, size, angle) {
         if (this.petalCount >= 100) return; // Maximum reached
 
         // Calculate the instance index
@@ -653,13 +663,6 @@ export class LSystemPlant {
 
         // Set the instance matrix
         this.petalInstancedMesh.setMatrixAt(instanceIndex, matrix);
-
-        // Set the instance color
-        if (color) {
-            // If the material supports it, you could set instance colors
-            // For simplicity, we're just setting the material color for all petals
-            this.petalInstancedMesh.material.color.set(color);
-        }
 
         // Update the instance
         this.petalCount++;

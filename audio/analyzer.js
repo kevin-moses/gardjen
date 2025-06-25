@@ -18,7 +18,9 @@ export class AudioAnalyzer {
             spectralCentroid: 0, // Spectral Centroid (brightness)
             zcr: 0,          // Zero Crossing Rate (noisiness)
             spectralRolloff: 0, // Spectral Rolloff (frequency below which is N% of the spectrum)
-            spectralFlatness: 0 // Spectral Flatness (tonal vs noise)
+            spectralFlatness: 0, // Spectral Flatness (tonal vs noise)
+            spectralSpread: 0,  // spectralSpread (tonal vs noise)
+            perceptualSharpness: 0
         };
 
         // For transition detection
@@ -49,11 +51,13 @@ export class AudioAnalyzer {
                 featureExtractors: [
                     'rms',
                     'energy',
+                    'amplitudeSpectrum',
                     'spectralCentroid',
                     'zcr',
                     'spectralRolloff',
                     'spectralFlatness',
-                    'amplitudeSpectrum'  // Add this to get raw spectrum data
+                    'spectralSpread',
+                    'perceptualSharpness'
                 ],
                 callback: (features) => {
                     try {
@@ -102,7 +106,10 @@ export class AudioAnalyzer {
             spectralCentroid: features.spectralCentroid !== undefined ? features.spectralCentroid : 0,
             zcr: features.zcr !== undefined ? features.zcr : 0,
             spectralRolloff: features.spectralRolloff !== undefined ? features.spectralRolloff : 0,
-            spectralFlatness: features.spectralFlatness !== undefined ? features.spectralFlatness : 0
+            spectralFlatness: features.spectralFlatness !== undefined ? features.spectralFlatness : 0,
+            spectralSpread: features.spectralSpread !== undefined ? features.spectralSpread : 0,
+            perceptualSharpness: features.perceptualSharpness !== undefined ? features.perceptualSharpness : 0
+
         };
 
         // Add spectral flux to history if it exists

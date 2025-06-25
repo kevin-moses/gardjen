@@ -1,44 +1,151 @@
 import { AudioAnalyzer } from '../audio/analyzer.js';
+import { conifer, simpleDaisy, fan, fern } from './rules';
 // convert audioanalyzer metrics to branch/leaf params
 export class AVConverter {
-    constructor() {
+    constructor(devMode = false) {
         this.audioanalyzer = null;
+        this.devMode = devMode;
     }
     async init() {
-        this.audioanalyzer = new AudioAnalyzer();
-        let audioInitSuccess = await this.audioanalyzer.init();
-        if (!audioInitSuccess) {
-            console.error('All audio analyzers failed. Please check microphone permissions.');
-            document.getElementById('status').textContent = 'Audio initialization failed. Please grant microphone permission and refresh.';
-            return;
+        if (!this.devMode) {
+            this.audioanalyzer = new AudioAnalyzer();
+            let audioInitSuccess = await this.audioanalyzer.init();
+            if (!audioInitSuccess) {
+                console.error('All audio analyzers failed. Please check microphone permissions.');
+                document.getElementById('status').textContent = 'Audio initialization failed. Please grant microphone permission and refresh.';
+                return;
+            }
+            this.audioanalyzer.start();
+            document.getElementById('status').textContent = 'Audio analyzer running';
         }
-        this.audioanalyzer.start();
-        document.getElementById('status').textContent = 'Audio analyzer running';
     }
 
     hasAudio() {
-        const metrics = this.audioanalyzer.getMetrics(); 
+        if (this.devMode) {
+            return true;
+        }
+        const metrics = this.audioanalyzer.getMetrics();
         if (metrics.rms == 0.0) {
             console.log("no audio detected")
             return false;
         }
         return true;
     }
+    
+    // figure out which tree to render
+    selectTree() {
 
+    }
+    
+    //**
+    //  * Given a config, generate the parameters for the tree
+    //  * @param {Object} config - The config to generate parameters for
+    //  * @returns {Object} - The parameters for the tree, varies if we generate flowers or not
+    //  */
     generateParameters(config) {
+        if (this.devMode) {
+            return {
+                leafColor: 0x00ff00,
+                scale: 1,
+                flowerPetalColor: 0x00ff00,
+                flowerCenterColor: 0x00ff00
+            };
+        }
         const metrics = this.audioanalyzer.getMetrics();
-        const spectralCentroid = metrics.spectralCentroid;
-        console.log('spectralCentroid: ' + spectralCentroid);
-        console.log(metrics)
+        const spectralCentroid = metrics.spectralCentroid / 206.0;
+        const spectralFlatness = metrics.spectralFlatness;
+        const spectralSpread = metrics.spectralSpread / 206.0;
+        const perceptualSharpness = metrics.perceptualSharpness;
+        const energy = metrics.energy;
         let params = {}
+        params.leaf = {}
+        params.leaf.length = this.interpolateMinMax(spectralSpread,config.leaf.length.min,config.leaf.length.max)
+        params.leaf.width = this.interpolateMinMax(spectralSpread,config.leaf.width.min,config.leaf.width.max)
+        params.leaf.archStrength = this.interpolateMinMax(spectralSpread,config.leaf.archStrength.min,config.leaf.archStrength.max)
+        console.log('params.leaf')
+        console.log(params.leaf)
+
         if (config.generate.leaves === true) {
-            params.leafColor = this.convertNumberToLeafColor(spectralCentroid / 512.0);
+            console.log('spectralSpread:')
+            console.log(spectralSpread)
+            console.log('perceptualSharpness: ')
+            console.log(perceptualSharpness)
+            params.leafColor = this.convertNumberToLeafColor(spectralCentroid);
+            params.scale = this.convertEnergyToScale(energy);
+
         }
         if (config.generate.flowers === true) {
             // params
+            params.flowerPetalColor = this.floatToColor(spectralCentroid);
+            params.flowerCenterColor = this.floatToColor(spectralFlatness);
+            params.petal = {}
+            params.petal.count = this.interpolateMinMax(perceptualSharpness, config.flower.petalCount.min, config.flower.petalCount.max)
+            params.petal.width = this.interpolateMinMax(spectralSpread, config.flower.petalWidth.min, config.flower.petalWidth.max)
+            params.petal.curvature = this.interpolateMinMax(spectralSpread, config.flower.petalCurvature.min, config.flower.petalCurvature.max)
         }
+
         return params;
     }
+    // convert a 0.0-1.0 float to an interpolation between min and max values
+    // used for leaf values
+    interpolateMinMax(value, min, max) {
+        return min + (value * (max-min))
+    }
+
+    /***
+     * Convert energy (0-512) to a integer between 1 and 10
+     * used for a scaling factor for tree size
+     */
+    convertEnergyToScale(energy) {
+        console.log('energy: ' + energy);
+        return Math.floor(energy / 51.2) + 1;
+    }
+
+    /**
+     * Converts a float value (0-1) to a vibrant color
+     * @param {number} value - Float between 0 and 1
+     * @returns {number} - THREE.js color value
+     */
+    floatToColor(value) {
+        // Convert to HSL
+        // Hue: 0-360 (full color spectrum)
+        // Saturation: 70-100% (vibrant colors)
+        // Lightness: 50-70% (avoid dark colors)
+        const hue = value * 360;
+        const saturation = 70 + (value * 30); // 70-100%
+        const lightness = 50 + (value * 20);  // 50-70%
+
+        // Convert HSL to RGB
+        const h = hue / 360;
+        const s = saturation / 100;
+        const l = lightness / 100;
+
+        let r, g, b;
+
+        if (s === 0) {
+            r = g = b = l;
+        } else {
+            const hue2rgb = (p, q, t) => {
+                if (t < 0) t += 1;
+                if (t > 1) t -= 1;
+                if (t < 1 / 6) return p + (q - p) * 6 * t;
+                if (t < 1 / 2) return q;
+                if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+                return p;
+            };
+
+            const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+            const p = 2 * l - q;
+
+            r = hue2rgb(p, q, h + 1 / 3);
+            g = hue2rgb(p, q, h);
+            b = hue2rgb(p, q, h - 1 / 3);
+        }
+
+        // Convert to THREE.js color format (0xRRGGBB)
+        return (Math.round(r * 255) << 16) | (Math.round(g * 255) << 8) | Math.round(b * 255);
+    }
+
 
 
     /**
@@ -47,8 +154,6 @@ export class AVConverter {
      * @returns {number} - THREE.js color value
      */
     convertNumberToLeafColor(value) {
-        
-        value = Math.max(0, Math.min(1, value));
         console.log('convertnumbertoleafcolor: ' + value);
 
         // Define seasonal leaf colors
