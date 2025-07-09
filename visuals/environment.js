@@ -51,6 +51,7 @@ export function createGrassFloor(scene) {
   const floor = new THREE.Mesh(geometry, grassMaterial);
   floor.rotation.x = -Math.PI / 2; // Rotate to be horizontal
   floor.position.y = 0; // Adjusted to match plant positioning
+  floor.receiveShadow = true; // Enable shadow receiving
   
   // Ensure normals are updated for proper lighting after vertex modifications
   geometry.computeVertexNormals();

@@ -5,7 +5,7 @@ import { LSystemPlant } from "./tree";
 import { LSystemFlower } from "./flower";
 import { createGrassFloor, calculateHeight } from "./environment";
 import { sunsetTexture } from "../textures/colors";
-import { fern, fan, conifer, simpleDaisy, bush } from "./rules";
+import { trees, flowers } from "./rules";
 import { AVConverter } from './avconverter';
 
 export class Renderer {
@@ -24,37 +24,47 @@ export class Renderer {
         this.renderer.setSize(window.innerWidth, window.innerHeight);
         document.body.appendChild(this.renderer.domElement);
 
-        this.camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 1000);
-        this.camera.position.set(10, 29, 133);
+        this.camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 1000);
+        this.camera.position.set(0, 15, 50);
         this.camera.lookAt(0, 0, 0);
         this.shadowsNeedUpdate = true;
 
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(0x000000);
 
         this.avconverter = new AVConverter(this.devMode);
 
         // Lock the camera in place: do not allow user to move or rotate
         this.controls = new OrbitControls(this.camera, this.renderer.domElement);
-        this.controls.enableZoom = true;
+        this.controls.enableZoom = false;
         this.controls.enableRotate = true;
         this.controls.enablePan = false;
-        this.controls.enableDamping = false;
+        this.controls.enableDamping = true;
 
         // Replace ambient light with more dynamic lighting
         const ambientLight = new THREE.AmbientLight(0x404040, 0.5); // Dimmer ambient
         this.scene.add(ambientLight);
         // Add directional light for shadows and definition
         const dirLight = new THREE.DirectionalLight(0xffffff, 1.5); // Increased intensity to 1.5
-        dirLight.position.set(10, 29, 133); // Match camera's initial position
+        dirLight.position.set(10, 45, 60); // Position light behind and above camera, offset to the right
         this.scene.add(dirLight);
         this.renderer.setClearColor(0x000000);
         createGrassFloor(this.scene); // Add grass floor        
+        this.scene.background = sunsetTexture;
 
-        // Optional: Enable shadows for more realism
+        // Enable shadows for more realism
         this.renderer.shadowMap.enabled = true;
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         dirLight.castShadow = true;
+        
+        // Configure shadow map for better quality
+        dirLight.shadow.mapSize.width = 2048;
+        dirLight.shadow.mapSize.height = 2048;
+        dirLight.shadow.camera.near = 0.5;
+        dirLight.shadow.camera.far = 500;
+        dirLight.shadow.camera.left = -100;
+        dirLight.shadow.camera.right = 100;
+        dirLight.shadow.camera.top = 100;
+        dirLight.shadow.camera.bottom = -100;
 
         // Initialize plants and flowers arrays
         this.plants = [];
@@ -86,7 +96,7 @@ export class Renderer {
         }
         // Proceed regardless after maxWait
         this.createNewPlant();
-        this.createNewFlower();
+        // this.createNewFlower();
         this.animate();
         return true;
     }
@@ -95,19 +105,21 @@ export class Renderer {
         if (!this.avconverter.hasAudio()) {
             return;
         }
+        // pick a plant from the trees array
+        const plant = trees[Math.floor(Math.random() * trees.length)];
         // Get camera's look direction
         const cameraDirection = new THREE.Vector3();
         this.camera.getWorldDirection(cameraDirection);
 
-        const params = this.avconverter.generateParameters(fern);
+        const params = this.avconverter.generateParameters(plant);
 
         // Calculate the camera's field of view in radians
         const fov = THREE.MathUtils.degToRad(this.camera.fov);
         const aspect = this.camera.aspect;
         
         // Choose a reasonable distance range for plant placement
-        const minDistance = 20;  // Minimum distance from camera
-        const maxDistance = 80;  // Maximum distance from camera
+        const minDistance = 10;  // Minimum distance from camera
+        const maxDistance = 40;  // Maximum distance from camera
         const distance = minDistance + Math.random() * (maxDistance - minDistance);
         
         // Calculate maximum offsets at this distance
@@ -136,12 +148,10 @@ export class Renderer {
         // Project camera direction onto XZ plane for orientation
         cameraDirection.y = 0;
         cameraDirection.normalize();
-        
-        // Calculate angle between camera direction and positive Z axis
-        
+                
         // Create plant with calculated position and orientation
-        const plant = new LSystemPlant(this.scene, plantPosition, null, fern, params);
-        this.plants.push(plant);
+        const lSystemPlant = new LSystemPlant(this.scene, plantPosition, null, plant, params);
+        this.plants.push(lSystemPlant);
         
         console.log(`New plant created at ${plantPosition.x}, ${plantPosition.y}, ${plantPosition.z}`);
     }
@@ -150,8 +160,9 @@ export class Renderer {
         // Get camera's look direction
         const cameraDirection = new THREE.Vector3();
         this.camera.getWorldDirection(cameraDirection);
-
-        const params = this.avconverter.generateParameters(simpleDaisy);
+        // pick a flower from the flowers array
+        const flower = flowers[Math.floor(Math.random() * flowers.length)];
+        const params = this.avconverter.generateParameters(flower);
         console.log('flowerparams:')
         console.log(params)
         
@@ -161,8 +172,8 @@ export class Renderer {
         const aspect = this.camera.aspect;
         
         // Choose a reasonable distance range for flower placement
-        const minDistance = 20;  // Minimum distance from camera
-        const maxDistance = 80;  // Maximum distance from camera
+        const minDistance = 2;  // Minimum distance from camera
+        const maxDistance = 20;  // Maximum distance from camera
         const distance = minDistance + Math.random() * (maxDistance - minDistance);
         
         // Calculate maximum offsets at this distance
@@ -193,8 +204,8 @@ export class Renderer {
         cameraDirection.normalize();
         
         // Create flower with calculated position and orientation
-        const flower = new LSystemFlower(this.scene, flowerPosition, null, simpleDaisy, params);
-        this.flowers.push(flower);
+        const lSystemFlower = new LSystemFlower(this.scene, flowerPosition, null, flower, params);
+        this.flowers.push(lSystemFlower);
         console.log("new flower created at ", flowerPosition.x, flowerPosition.y, flowerPosition.z);
     }
 
@@ -208,7 +219,6 @@ export class Renderer {
             statsContainer.style.top = '60px';  // Below dev mode button
             statsContainer.style.right = '10px';
             statsContainer.style.zIndex = '1000';
-            statsContainer.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
             statsContainer.style.padding = '10px';
             statsContainer.style.borderRadius = '4px';
             statsContainer.style.color = '#fff';
@@ -260,7 +270,7 @@ export class Renderer {
 
             // Check if all flowers are fully grown (with different timing)
             if (this.flowers.every(flower => flower.isFullyGrown())) {
-                this.createNewFlower();
+                // this.createNewFlower();
                 needsUpdate = true;
                 this.shadowsNeedUpdate = true;
             }

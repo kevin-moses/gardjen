@@ -50,10 +50,39 @@ export const weed = {
         "Y": "-FX"
     },
     angle: 22.5,
-    branchColor: {
-        red: 82/255,
-        green: 69/255,
-        blue: 49/255
+    maxIterations: 3,
+    // Branch properties
+    branch: {
+        color: {
+            red: 82/255,
+            green: 69/255,
+            blue: 49/255
+        },
+        baseLength: 0.3,     // Short, wiry stems
+        baseRadius: 0.06,    // Very thin stems
+        lengthFactor: 0.75,  // Rapid tapering
+        radiusFactor: 0.8    // Quick thickness reduction
+    },
+    // Leaf properties
+    leaf: {
+        type: 'oval',
+        length: {
+            min: 0.3,        // Small, sparse leaves
+            max: 2.6
+        },
+        width: {
+            min: 0.1,        // Very narrow leaves
+            max: 0.2
+        },
+        archStrength: {
+            min: 0.1,        // Minimal arch for wiry look
+            max: 0.7
+        }
+    },
+    // Generation flags
+    generate: {
+        flowers: false,
+        leaves: true
     }
 }
 
@@ -88,12 +117,12 @@ export const maple = {
             max: 2.5
         },
         width: {
-            min: 1.2,
-            max: 2.2
+            min: 0.5,
+            max: 2.5
         },
         archStrength: {
             min: 0.4,
-            max: 0.8
+            max: 0.9
         }
     },
     // Generation flags
@@ -106,9 +135,8 @@ export const simpleDaisy = {
     // L-system rules
     axiom: "X",
     rules: {
-        "X": "F[+X][-X]FZ",  // Create branching structure with flowers
+        "X": "F[+X][-X]F",  // Create branching structure with flowers
         "F": "FF",           // Make stems longer
-        "Z": "Z"             // Keep flowers at branch ends
     },
     angle: 25,
     maxIterations: 3,
@@ -119,7 +147,7 @@ export const simpleDaisy = {
             green: 128/255,
             blue: 72/255
         },
-        baseLength: 0.4,     // Shorter stems for daisies
+        baseLength: 0.1,     // Shorter stems for daisies
         baseRadius: 0.08,    // Thin delicate stems
         lengthFactor: 0.85,  // Moderate tapering
         radiusFactor: 0.8    // Gentle radius reduction
@@ -129,7 +157,7 @@ export const simpleDaisy = {
     leaf: {
         type: 'oval',
         length: {
-            min: 0.8,
+            min: 0.2,
             max: 1.2
         },
         width: {
@@ -149,34 +177,24 @@ export const simpleDaisy = {
             max: 21
         },
         petalLength: {
-            min: 1.8,        // Longer, more prominent petals
-            max: 2.4
+            min: 0.08,        // Longer, more prominent petals
+            max: 0.8
         },
         petalWidth: {
-            min: 0.15,       // Much narrower petals
-            max: 0.25
+            min: 0.05,       // Much narrower petals
+            max: 0.8
         },
         centerRadius: {
             min: 0.3,        // Slightly larger center
             max: 0.5
         },
-        petalColor: {
-            red: 0.98,       // Pure white petals
-            green: 0.98,
-            blue: 0.98
-        },
-        centerColor: {
-            red: 1.0,        // Bright yellow center
-            green: 0.85,
-            blue: 0.1
-        },
         petalCurvature: {    // New property for petal shape
             min: 0.1,
-            max: 0.3
+            max: 0.6
         },
         petalTaper: {        // New property for petal tapering
             min: 0.6,        // Petals get narrower toward tip
-            max: 0.8
+            max: 1.7
         }
     },
     generate: {
@@ -215,7 +233,7 @@ export const fern = {
         },
         width: {
             min: 0.5,
-            max: 2.0
+            max: 3.0
         },
         archStrength: {
             min: 0.5,
@@ -259,7 +277,7 @@ export const bush = {
         },
         width: {
             min: 0.2,
-            max: 0.5
+            max: 2.5
         },
         archStrength: {
             min: 0.2,
@@ -273,21 +291,78 @@ export const bush = {
     }
 }
 
-export const sunflower = {
-    axiom: "F",
+
+
+export const rose = {
+    // L-system rules - simple branching with flowers
+    axiom: "X",
     rules: {
-        "F": "F[+F]F[-F]FZ"
+        "X": "F[+X][-X]F",  // Create branching structure with flowers
+        "F": "FF",           // Make stems longer
     },
-    angle: 137.5,  // Golden angle for radial symmetry
-    branchColor: {
-        red: 77/255,
-        green: 82/255,
-        blue: 24/255
+    angle: 25,
+    maxIterations: 2,
+    // Branch properties
+    branch: {
+        color: {
+            red: 139/255,    // Brown stem color for roses
+            green: 69/255,
+            blue: 19/255
+        },
+        baseLength: 0.4,    // Shorter stems for roses
+        baseRadius: 0.08,    // Thin delicate stems
+        lengthFactor: 0.85,  // Moderate tapering
+        radiusFactor: 0.8    // Gentle radius reduction
     },
-    maxBranchLength: .2,
-    maxLeafSize: 0.8,
-    generateFlowers: true,
-    generateLeaves: true,
+    
+    // Leaf properties
+    leaf: {
+        type: 'serrated',
+        length: {
+            min: 0.6,
+            max: 1.0
+        },
+        width: {
+            min: 0.4,
+            max: 0.7
+        },
+        archStrength: {
+            min: 0.5,
+            max: 1.0
+        }
+    },
+    
+    // Flower properties - designed for layered rose petals
+    flower: {
+        petalCount: {
+            min: 35,         // Many petals for layered rose look
+            max: 45
+        },
+        petalLength: {
+            min: 0.2,        // Shorter, more compact petals
+            max: 0.8
+        },
+        petalWidth: {
+            min: 0.04,        // Wider petals for rose fullness
+            max: 0.06
+        },
+        centerRadius: {
+            min: 0.2,        // Small center for rose
+            max: 0.4
+        },
+        petalCurvature: {    // Strong curvature for rose petal shape
+            min: 2.4,
+            max: 2.7
+        },
+        petalTaper: {        // Moderate tapering for natural look
+            min: 2.6,
+            max: 2.8
+        }
+    },
+    generate: {
+        flowers: true,
+        leaves: false
+    }
 }
 
 export const fan = {
@@ -314,16 +389,16 @@ export const fan = {
     leaf: {
         type: 'maple',
         length: {
-            min: 1.0,               // Medium-sized leaves
-            max: 1.6
+            min: 0.5,               // Medium-sized leaves
+            max: 2.6
         },
         width: {
             min: 0.8,               // Nice leaf proportions
-            max: 1.2
+            max: 2.2
         },
         archStrength: {
             min: 0.3,               // Natural leaf curve
-            max: 0.6
+            max: 0.7
         }
     },
     // Generation flags
@@ -340,7 +415,7 @@ export const conifer = {
          "F": "F[--F][F][++F]F"      // Conifer branching: downward, straight, upward, continue
     },
     angle: 35,                      // Wider angle for drooping effect
-    maxIterations: 2,               // More iterations for dense foliage
+    maxIterations: 3,               // More iterations for dense foliage
     // Branch properties
     branch: {
         color: {
@@ -357,16 +432,16 @@ export const conifer = {
     leaf: {
         type: 'oval',
         length: {
-            min: 1.3,               // Small needle-like leaves
+            min: 0.3,               // Small needle-like leaves
             max: 1.6
         },
         width: {
             min: 0.1,               // Very narrow needles
-            max: 0.2
+            max: 0.5
         },
         archStrength: {
             min: 0.1,               // Slight droop for needles
-            max: 0.25
+            max: 0.55
         }
     },
     // Generation flags
@@ -375,3 +450,6 @@ export const conifer = {
         leaves: true
     }
 }
+
+export const trees = [barnsley, maple, fern, bush, conifer, fan, weed]
+export const flowers = [simpleDaisy]

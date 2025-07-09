@@ -107,11 +107,23 @@ export class AVConverter {
      * @returns {number} - THREE.js color value
      */
     floatToColor(value) {
-        // Convert to HSL
-        // Hue: 0-360 (full color spectrum)
-        // Saturation: 70-100% (vibrant colors)
-        // Lightness: 50-70% (avoid dark colors)
-        const hue = value * 360;
+        // Convert to HSL but avoid green colors (hue 90-150 degrees)
+        // Use a modified hue range that skips green
+        let hue;
+        if (value < 0.25) {
+            // Red to orange (0-60 degrees)
+            hue = value * 240; // 0-60
+        } else if (value < 0.5) {
+            // Orange to yellow (60-90 degrees)
+            hue = 60 + (value - 0.25) * 120; // 60-90
+        } else if (value < 0.75) {
+            // Skip green, go from yellow to cyan (90-180 degrees)
+            hue = 90 + (value - 0.5) * 360; // 90-180
+        } else {
+            // Cyan to blue to magenta to red (180-360 degrees)
+            hue = 180 + (value - 0.75) * 720; // 180-360
+        }
+        
         const saturation = 70 + (value * 30); // 70-100%
         const lightness = 50 + (value * 20);  // 50-70%
 
@@ -160,7 +172,6 @@ export class AVConverter {
         const colors = [
             { r: 34 / 255, g: 139 / 255, b: 34 / 255 },    // Forest green
             { r: 107 / 255, g: 142 / 255, b: 35 / 255 },    // Olive green
-            { r: 255 / 255, g: 140 / 255, b: 0 / 255 },     // Orange
             { r: 255 / 255, g: 215 / 255, b: 0 / 255 },     // Golden yellow
             { r: 139 / 255, g: 69 / 255, b: 19 / 255 },     // Brown
             { r: 178 / 255, g: 34 / 255, b: 34 / 255 },      // Dark red

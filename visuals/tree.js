@@ -112,6 +112,8 @@ export class LSystemPlant {
             1000 // Maximum instances
         );
         this.leafInstancedMesh.count = 0; // Start with 0 instances
+        this.leafInstancedMesh.castShadow = true;
+        this.leafInstancedMesh.receiveShadow = true;
         this.scene.add(this.leafInstancedMesh);
         // Create petal geometry (shared for all petals in this plant)
         if (this.generateFlowers) {
@@ -133,6 +135,8 @@ export class LSystemPlant {
                 dynamicConfig.petal.count * 20 // Max petals = max petals per flower * max flowers
             );
             this.petalInstancedMesh.count = 0;
+            this.petalInstancedMesh.castShadow = true;
+            this.petalInstancedMesh.receiveShadow = true;
             this.scene.add(this.petalInstancedMesh);
 
             this.flowerCenterInstancedMesh = new THREE.InstancedMesh(
@@ -145,6 +149,8 @@ export class LSystemPlant {
                 20 // Maximum flower centers per plant
             );
             this.flowerCenterInstancedMesh.count = 0;
+            this.flowerCenterInstancedMesh.castShadow = true;
+            this.flowerCenterInstancedMesh.receiveShadow = true;
             this.scene.add(this.flowerCenterInstancedMesh);
 
             // Initialize counts
@@ -387,12 +393,8 @@ export class LSystemPlant {
                     if (this.branchStack.length > 0) {
                         // Place leaves at every branch end (optionally, only if depth > 1)
                         if (this.generateLeaves /* && this.currentDepth > 1 */) {
-                            let leafSize = Math.pow(0.9, this.currentDepth);
-                            // Apply scale factor to leaf size if leaves are generated and scale is provided
-                            if (this.dynamicConfig.scale) {
-                                const scaleFactor = this.dynamicConfig.scale;
-                                leafSize *= scaleFactor;
-                            }
+                            // Use consistent leaf size since geometry already has proper dimensions from config
+                            const leafSize = 1.0;
                             const leavesPerNode = 3;
                             for (let i = 0; i < leavesPerNode; i++) {
                                 this.createLeaf(this.position.clone(), this.direction.clone(), leafSize, {
@@ -402,16 +404,14 @@ export class LSystemPlant {
                                 });
                             }
                         }
-                        // Optionally, keep isTerminal for flowers only
-                        const nextChar = this.currentSentence[this.processedChars + 1];
-                        const isTerminal = (
-                            this.processedChars + 1 >= this.currentSentence.length ||
-                            !['[', 'F', 'f'].includes(nextChar)
-                        );
-                        if (isTerminal && this.generateFlowers) {
-                            const flowerSize = Math.pow(0.8, this.currentDepth);
+                        
+                        // Place flowers at every branch end (same logic as leaves)
+                        if (this.generateFlowers) {
+                            // Use consistent flower size since geometry already has proper dimensions from config
+                            const flowerSize = 1.0;
                             this.createFlower(this.position.clone(), this.direction.clone(), flowerSize);
                         }
+                        
                         // Restore state
                         const state = this.branchStack.pop();
                         this.position = state.position;
@@ -419,13 +419,6 @@ export class LSystemPlant {
                         this.left = state.left;
                         this.up = state.up;
                         this.currentDepth = state.depth;
-                    }
-                    break;
-
-                case 'Z': // Create flower at this position
-                    if (this.generateFlowers) {
-                        const flowerSize = Math.pow(0.8, this.currentDepth);
-                        this.createFlower(this.position.clone(), this.direction.clone(), flowerSize);
                     }
                     break;
             }
@@ -472,6 +465,10 @@ export class LSystemPlant {
             normalizedDirection           // Target direction
         );
 
+        // Enable shadow casting
+        cylinder.castShadow = true;
+        cylinder.receiveShadow = true;
+        
         // Add to scene and store reference
         this.scene.add(cylinder);
         this.branches.push(cylinder);
@@ -480,49 +477,85 @@ export class LSystemPlant {
     }
 
     createPetalGeometry(dynamicConfig) {
-        // Create a shape for the petal using config parameters
-        const petalShape = new THREE.Shape();
-        const size = 1.0; // Unit size - will be scaled later
+        // Create a 3D petal that curves outward and upward naturally
+        const segments = 12; // Number of segments for smooth curvature
         
-        // Use config parameters for petal dimensions
+        // Get configuration parameters from both static and dynamic configs
         const petalWidth = dynamicConfig.petal.width;
-        
-        // Get curvature and taper values from config
         const curvature = dynamicConfig.petal.curvature;
         
+        // Get petal length from static config
+        const petalLengthMin = this.tree.flower.petalLength.min;
+        const petalLengthMax = this.tree.flower.petalLength.max;
+        const petalLength = petalLengthMin + Math.random() * (petalLengthMax - petalLengthMin);
+        
+        // Get taper from static config
         const taper = this.tree.flower.petalTaper?.min + 
             (Math.random() * ((this.tree.flower.petalTaper?.max || 0.8) - (this.tree.flower.petalTaper?.min || 0.6)));
     
-        // Create more realistic petal shape with tapering
-        const baseWidth = petalWidth;
-        const tipWidth = baseWidth * taper; // Narrower at tip
+        // Create vertices and faces for a 3D curved petal
+        const vertices = [];
+        const faces = [];
+        const uvs = [];
+
+        let crossSections = 5;
+
+        // Create petal by generating vertices along its length
+        for (let i = 0; i <= segments; i++) {
+            const t = i / segments; // Parameter from 0 to 1 along petal length
+            
+            // Calculate position along petal length
+            const x = t * petalLength;
+            
+            // Calculate width at this position (tapering from base to tip)
+            const widthAtPosition = petalWidth * (1 - t * (1 - taper));
+            
+            // Calculate upward curvature - stronger curve at the tip
+            const upwardCurve = Math.sin(t * Math.PI * 0.5) * curvature * petalLength * 0.3;
+            
+            // Create vertices across the width at this position
+            for (let j = 0; j <= crossSections; j++) {
+                const s = (j / crossSections) - 0.5; // Parameter from -0.5 to 0.5 across width
+                
+                // Calculate the actual width coordinates with smooth edges
+                const widthFactor = Math.cos(s * Math.PI); // Smooth falloff to edges
+                const y = s * widthAtPosition * widthFactor;
+                
+                // Add slight curvature across width for natural look
+                const z = upwardCurve + (widthFactor * 0.1 * widthAtPosition * Math.sin(t * Math.PI));
+                
+                vertices.push(x, y, z);
+                uvs.push(t, (j / crossSections));
+            }
+        }
+
+        // Create faces connecting the vertices
+        for (let i = 0; i < segments; i++) {
+            for (let j = 0; j < crossSections; j++) {
+                const a = i * (crossSections + 1) + j;
+                const b = i * (crossSections + 1) + j + 1;
+                const c = (i + 1) * (crossSections + 1) + j + 1;
+                const d = (i + 1) * (crossSections + 1) + j;
+
+                // Create two triangles for each quad
+                faces.push(a, b, d);
+                faces.push(b, c, d);
+            }
+        }
+
+        // Create the geometry
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+        geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+        geometry.setIndex(faces);
         
-        petalShape.moveTo(0, 0);
+        // Compute normals for proper lighting
+        geometry.computeVertexNormals();
         
-        // Right edge - curves outward then tapers in
-        petalShape.bezierCurveTo(
-            size * 0.2, baseWidth * (1 + curvature),     // Control point 1 - outward curve
-            size * 0.8, tipWidth * (1 + curvature * 0.5), // Control point 2 - less curve near tip
-            size, 0                                        // End point at tip
-        );
-        
-        // Left edge - mirror of right edge
-        petalShape.bezierCurveTo(
-            size * 0.8, -tipWidth * (1 + curvature * 0.5), // Control point 1
-            size * 0.2, -baseWidth * (1 + curvature),       // Control point 2
-            0, 0                                             // Back to start
-        );
-    
-        // Create geometry from the shape
-        const petalGeometry = new THREE.ShapeGeometry(petalShape, 8);
-    
-        // Center the geometry at origin for proper transformations
-        petalGeometry.computeBoundingBox();
-        const center = new THREE.Vector3();
-        petalGeometry.boundingBox.getCenter(center);
-        petalGeometry.translate(-center.x, -center.y, -center.z);
-    
-        return petalGeometry;
+        // Center the geometry at the base (where it attaches to flower center)
+        geometry.translate(-petalLength * 0.1, 0, 0); // Slight offset so base overlaps with center
+
+        return geometry;
     }
 
     createLeaf(position, direction, size, options = {}) {
@@ -581,7 +614,6 @@ export class LSystemPlant {
     }
     // New function to create flowers using Bezier curves
     createFlower(position, direction, size) {
-        if (this.flowerCount >= 20) return; // Maximum reached
 
         // Use the proper index for the flower center
         const centerIndex = this.flowerCount;
@@ -608,8 +640,9 @@ export class LSystemPlant {
         this.flowerCenterInstancedMesh.count = this.flowerCount;
         this.flowerCenterInstancedMesh.instanceMatrix.needsUpdate = true;
 
-        // Create petals around the center
-        const petalCount = 5 + Math.floor(Math.random() * 3); // 5-7 petals
+        // Create petals around the center using dynamic petal count
+        const petalCount = this.dynamicConfig.petal.count;
+        
         for (let i = 0; i < petalCount; i++) {
             const angle = (i / petalCount) * Math.PI * 2;
             this.createPetal(position, direction, size, angle);
@@ -624,7 +657,7 @@ export class LSystemPlant {
         // Calculate the instance index
         const instanceIndex = this.petalCount;
 
-        // Replace the matrix creation section with this:
+        // Create transformation matrix for the petal
         const matrix = new THREE.Matrix4();
 
         // Start with identity matrix
@@ -646,14 +679,19 @@ export class LSystemPlant {
         const rotationY = new THREE.Matrix4().makeRotationY(angle);
         matrix.multiply(rotationY);
 
-        // Apply random tilt (around local X axis)
-        const randomTilt = THREE.MathUtils.degToRad(Math.random() * 20 - 10);
-        const tiltMatrix = new THREE.Matrix4().makeRotationX(randomTilt);
+        // Add upward tilt for natural flower appearance (petals curve upward)
+        const upwardTilt = THREE.MathUtils.degToRad(15 + Math.random() * 25); // 15-40 degrees upward
+        const tiltMatrix = new THREE.Matrix4().makeRotationZ(-upwardTilt); // Negative for upward tilt
         matrix.multiply(tiltMatrix);
+
+        // Add slight random variation for natural look
+        const randomTilt = THREE.MathUtils.degToRad(Math.random() * 10 - 5); // ±5 degrees
+        const randomTiltMatrix = new THREE.Matrix4().makeRotationX(randomTilt);
+        matrix.multiply(randomTiltMatrix);
 
         // Apply small offset from center (to position petals around center)
         // This moves the petal outward from the center point
-        const offset = size * 0.1; // Small offset
+        const offset = size * 0.05; // Smaller offset so petals start closer to center
         const offsetMatrix = new THREE.Matrix4().makeTranslation(0, 0, offset);
         matrix.multiply(offsetMatrix);
 
